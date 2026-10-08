@@ -11,6 +11,7 @@ import time
 
 from textual import events
 from textual.binding import Binding
+from textual.containers import VerticalScroll
 from textual.widgets import Input, OptionList, Select
 from textual.widgets._select import SelectCurrent, SelectOverlay
 
@@ -187,3 +188,27 @@ class NavOptionList(OptionList):
         enabled = self._enabled()
         if enabled and self.highlighted is None:
             self.highlighted = enabled[0]
+
+
+class NavScroll(VerticalScroll):
+    """A scrollable area that hands the focus over once it cannot scroll any further."""
+
+    BINDINGS = [
+        Binding("left", "hand_over(-1)", "Précédent", show=False),
+        Binding("right", "hand_over(1)", "Suivant", show=False),
+    ]
+
+    def action_hand_over(self, direction: int) -> None:
+        (self.screen.focus_next if direction > 0 else self.screen.focus_previous)()
+
+    def action_scroll_up(self) -> None:
+        if self.scroll_y <= 0:
+            self.screen.focus_previous()
+        else:
+            super().action_scroll_up()
+
+    def action_scroll_down(self) -> None:
+        if self.scroll_y >= self.max_scroll_y:
+            self.screen.focus_next()
+        else:
+            super().action_scroll_down()

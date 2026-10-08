@@ -8,13 +8,19 @@ USAGE = """usage: cadav {serve,play} [options]
 
   serve   lance le serveur (cadav serve --help)
   play    lance le client  (cadav play --help)
+
+  cadav --version   affiche la version
 """
 
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     command, rest = (args[0], args[1:]) if args else ("", [])
-    if command == "serve":
+    if command in ("--version", "-V", "version"):
+        from cadav import __version__
+
+        print(f"cadav {__version__}")
+    elif command == "serve":
         from cadav.server import main as serve
 
         serve(rest)

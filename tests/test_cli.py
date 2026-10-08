@@ -19,3 +19,11 @@ def test_subcommands_are_wired(command, capsys):
         cli.main([command, "--help"])
     assert e.value.code == 0
     assert f"cadav {command}" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("flag", ["--version", "-V", "version"])
+def test_version(flag, capsys):
+    from cadav import __version__
+
+    assert cli.main([flag]) == 0
+    assert capsys.readouterr().out.strip() == f"cadav {__version__}"

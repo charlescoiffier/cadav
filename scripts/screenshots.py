@@ -71,7 +71,7 @@ async def main() -> None:
             await until("game_joined")
 
         config = tmp / "client.json"
-        Config("", "", url).save(config)
+        Config("", "", url, export_dir="~/Documents/cadav").save(config)
         app = CadavApp(config_path=config, url=url, retry_delays=(0.05,))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause(0.3)

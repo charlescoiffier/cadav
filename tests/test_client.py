@@ -13,7 +13,7 @@ from textual.widgets import Button, Input, OptionList, Select, Static, TextArea
 
 from cadav.client.app import CadavApp
 from cadav.client.config import Config
-from cadav.client.screens import Banner, CreateScreen, GameScreen, LobbyScreen, LoginScreen, WaitingScreen
+from cadav.client.screens import Banner, CreateScreen, FinalScreen, GameScreen, LobbyScreen, LoginScreen, WaitingScreen
 from cadav.server import Server
 from cadav.storage import Storage
 
@@ -812,7 +812,7 @@ async def test_countdown_follows_the_clock(backend):
         await until(pilot, lambda: text(app, "#deadline") == "échéance dépassée", timeout=3)
 
 
-async def test_skipped_turn_and_finished_game_show_the_story(backend):
+async def test_skipped_turn_then_the_end_opens_the_final_screen(backend):
     app = await ready(backend)
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
@@ -826,11 +826,138 @@ async def test_skipped_turn_and_finished_game_show_the_story(backend):
         app.screen.query_one("#draft", TextArea).text = "La fin de ana."
         await pilot.pause()
         await pilot.press("ctrl+s")
-        await until(pilot, lambda: app.screen.query_one("#story-pane").display)
+        await until(pilot, lambda: isinstance(app.screen, FinalScreen))
         story = text(app, "#story")
         assert "bob" in story and "Le début. Presque fini." in story and "La fin de ana." in story
-        assert "Tours sautés : cleo" in story
-        assert not app.screen.query_one("#write-pane").display and not app.screen.query_one("#deadline-pane").display
+        assert "cleo" in text(app, "#final-info") and "Tours sautés" in text(app, "#final-info")
+
+
+async def finish_game(backend, app, pilot, **settings):
+    """bob, cleo then ana (through the UI) write: the game ends and the final screen opens."""
+    clients, gid = await start_three(backend, app, pilot, ["bob", "cleo", "ana"], **settings)
+    await say(backend, clients, gid, "bob", "Le brouillard avala le phare.\nPuis la nuit.")
+    await say(backend, clients, gid, "cleo", "Une cloche sonna dans le noir.")
+    await until(pilot, lambda: app.screen.query_one("#write-pane").display)
+    app.screen.query_one("#draft", TextArea).text = "Alors tout s'éclaira."
+    await pilot.pause()
+    await pilot.press("ctrl+s")
+    await until(pilot, lambda: isinstance(app.screen, FinalScreen))
+    return gid
+
+
+async def test_final_screen_shows_the_whole_story(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await finish_game(backend, app, pilot, theme="Le phare")
+        story = text(app, "#story")
+        for expected in ("bob", "Le brouillard avala le phare.", "Puis la nuit.", "cleo", "Une cloche", "ana", "Alors tout s'éclaira."):
+            assert expected in story
+        assert story.index("bob") < story.index("cleo") < story.index("ana")  # writing order
+        assert "Le phare" in text(app, "#final-info")
+        assert app.focused.id == "story-scroll"
+
+
+async def test_save_the_story_as_markdown_then_text_without_overwriting(backend, tmp_path):
+    app = await ready(backend)
+    out = tmp_path / "histoires"
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await finish_game(backend, app, pilot, theme="Le phare")
+        app.screen.query_one("#export-dir", Input).value = str(out)
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: any("Enregistré" in n.message for n in app._notifications))
+        files = sorted(out.iterdir())
+        assert [f.suffix for f in files] == [".md"] and files[0].name.startswith("cadav-le-phare-")
+        content = files[0].read_text(encoding="utf-8")
+        assert content.startswith("# Le phare") and "**bob**" in content and "Alors tout s'éclaira." in content
+        await pilot.press("ctrl+s")  # same name again: a second file, the first one stays
+        await until(pilot, lambda: len(list(out.iterdir())) == 2)
+        app.screen.query_one("#export-format", Select).value = "txt"
+        await pilot.pause()
+        app.screen.query_one("#save", Button).press()
+        await until(pilot, lambda: len(list(out.iterdir())) == 3)
+        txt = next(f for f in out.iterdir() if f.suffix == ".txt").read_text(encoding="utf-8")
+        assert txt.startswith("Le phare\n========") and "— bob —" in txt
+    assert Config.load(backend.config_path).export_dir == str(out)  # remembered for next time
+
+
+async def test_copy_the_story(backend, monkeypatch):
+    import cadav.client.screens as screens
+
+    sent = {}
+    monkeypatch.setattr(screens.export, "copy_with_system_tool", lambda text: sent.setdefault("tool", text) and "pbcopy")
+    app = await ready(backend)
+    app.copy_to_clipboard = lambda text: sent.setdefault("osc52", text)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await finish_game(backend, app, pilot)
+        await pilot.press("ctrl+y")
+        await until(pilot, lambda: any("copiée" in n.message for n in app._notifications))
+        assert sent["tool"] == sent["osc52"]
+        assert "— bob —" in sent["tool"] and "Alors tout s'éclaira." in sent["tool"]
+
+
+async def test_copy_without_a_system_tool_still_asks_the_terminal(backend, monkeypatch):
+    import cadav.client.screens as screens
+
+    monkeypatch.setattr(screens.export, "copy_with_system_tool", lambda text: None)
+    app = await ready(backend)
+    asked = []
+    app.copy_to_clipboard = asked.append
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await finish_game(backend, app, pilot)
+        app.screen.query_one("#copy", Button).press()
+        await until(pilot, lambda: len(asked) == 1)
+        assert any("terminal" in n.message for n in app._notifications)
+
+
+async def test_saving_in_an_impossible_place_reports_the_error(backend, tmp_path):
+    app = await ready(backend)
+    blocker = tmp_path / "fichier"
+    blocker.write_text("x")
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await finish_game(backend, app, pilot)
+        app.screen.query_one("#export-dir", Input).value = str(blocker / "sous-dossier")
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: any("impossible" in n.message for n in app._notifications))
+        assert isinstance(app.screen, FinalScreen)
+
+
+async def test_finished_game_reopens_from_the_lobby_and_back(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        gid = await finish_game(backend, app, pilot)
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        label = str(app.screen.query_one("#my-games", OptionList).options[0].prompt)
+        assert "TERMINÉE" in label
+        app.screen.query_one("#my-games", OptionList).focus()
+        await pilot.press("enter")
+        await until(pilot, lambda: isinstance(app.screen, FinalScreen) and app.screen.game_id == gid)
+        await pilot.press("ctrl+g")  # finished games are not part of the cycle
+        await pilot.pause(0.2)
+        assert isinstance(app.screen, FinalScreen)
+
+
+async def test_final_screen_keyboard_walk(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await finish_game(backend, app, pilot)
+        await pilot.press("down")  # a short story cannot scroll: the focus moves on
+        assert focused_id(app) == "export-dir"
+        await pilot.press("down")
+        assert focused_id(app) == "export-format"
+        await pilot.press("down", "down", "down")  # Enregistrer, Copier, Retour
+        assert focused_id(app) == "back"
+        await pilot.press("up", "up", "up")
+        assert focused_id(app) == "export-format"
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
 
 
 async def test_leaving_a_running_game_needs_two_presses(backend):

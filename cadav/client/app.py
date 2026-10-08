@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from cadav.client.connection import RETRY_DELAYS, Connection
 from cadav.client.theme import APP_CSS, DEFAULT_PALETTE, PALETTES, build_theme, use_palette
 from cadav.client.screens import (
     CreateScreen,
+    FinalScreen,
     GameScreen,
     LobbyScreen,
     LoginScreen,
@@ -106,7 +108,7 @@ class CadavApp(App):
         if action in ("focus_next", "focus_previous") and isinstance(self.focused, SelectOverlay):
             return False
         if action in ("my_turn_game", "next_game"):
-            browsing = isinstance(self.screen, (LobbyScreen, WaitingScreen, GameScreen))
+            browsing = isinstance(self.screen, (LobbyScreen, WaitingScreen, GameScreen, FinalScreen))
             return browsing and bool(self.games)
         return super().check_action(action, parameters)
 
@@ -132,9 +134,9 @@ class CadavApp(App):
         """Called by the login screen: reuse the stored secret for the same pseudo, else register."""
         same = self.config.registered and pseudo.casefold() == self.config.pseudo.casefold()
         if same:
-            creds = Config(self.config.pseudo, self.config.secret, url, self.config.theme)
+            creds = replace(self.config, url=url)
         else:
-            creds = Config(pseudo, new_secret(), url, self.config.theme)
+            creds = replace(self.config, pseudo=pseudo, secret=new_secret(), url=url)
         self.connect(creds, registering=not same)
 
     def _hello(self):
@@ -182,7 +184,7 @@ class CadavApp(App):
     async def _on_auth_ok(self, msg: AuthOk) -> None:
         self.pseudo = msg.pseudo
         if self._registering:
-            self.config = Config(msg.pseudo, self._candidate.secret, self._candidate.url, self.config.theme)
+            self.config = replace(self.config, pseudo=msg.pseudo, secret=self._candidate.secret, url=self._candidate.url)
             self.config.save(self.config_path)
             self._registering = False
         if isinstance(self.screen, LoginScreen):
@@ -223,17 +225,22 @@ class CadavApp(App):
 
     def _viewing(self, game_id: str) -> bool:
         screen = self.screen
-        return isinstance(screen, (GameScreen, WaitingScreen)) and screen.game_id == game_id
+        return isinstance(screen, (GameScreen, WaitingScreen, FinalScreen)) and screen.game_id == game_id
 
     def open_game(self, game_id: str) -> None:
         """Show a game: its waiting room, or the game screen (running or finished)."""
         view = self.games.get(game_id)
         if view is None or self._viewing(game_id):
             return
-        screen = WaitingScreen(game_id) if view.status == GameStatus.WAITING else GameScreen(game_id)
+        if view.status == GameStatus.WAITING:
+            screen = WaitingScreen(game_id)
+        elif view.status == GameStatus.FINISHED:
+            screen = FinalScreen(game_id)
+        else:
+            screen = GameScreen(game_id)
         if isinstance(self.screen, LobbyScreen):
             self.push_screen(screen)
-        elif isinstance(self.screen, (GameScreen, WaitingScreen)):
+        elif isinstance(self.screen, (GameScreen, WaitingScreen, FinalScreen)):
             self.switch_screen(screen)
 
     def _cycle(self, ids: list[str]) -> str | None:
@@ -246,7 +253,7 @@ class CadavApp(App):
         return ids[(ids.index(current) + 1) % len(ids)]
 
     def action_next_game(self) -> None:
-        active = [g.game_id for g in self.games.values() if g.status != GameStatus.FINISHED]
+        active = [g.game_id for g in self.games.values() if g.status != GameStatus.FINISHED]  # finished: use the lobby
         target = self._cycle(active)
         if target is None:
             self.notify("Aucune autre partie en cours.")

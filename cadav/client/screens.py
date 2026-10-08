@@ -20,7 +20,8 @@ from cadav.client.logic import (
     turn_position,
     word_status,
 )
-from cadav.client.widgets import NavInput, NavOptionList, NavSelect
+from cadav.client import export
+from cadav.client.widgets import NavInput, NavOptionList, NavScroll, NavSelect
 from cadav.client.theme import chip, colors
 from cadav.protocol import (
     MIN_PLAYERS,
@@ -115,7 +116,7 @@ def my_game_prompt(view: GameView) -> Text:
         info = "c'est ton tour" if view.my_turn else f"tour de {view.current_player}"
     else:
         badge = chip("TERMINÉE", colors.success)
-        info = "lis l'histoire"
+        info = "lire et garder l'histoire"
     return Text.assemble(badge, " ", (theme, "bold"), "\n", info)
 
 
@@ -430,7 +431,10 @@ class WaitingScreen(Screen):
     def refresh_view(self) -> None:
         view = self.app.games.get(self.game_id)
         if view is not None and view.status != GameStatus.WAITING and self.app.screen is self:
-            self.app.switch_screen(GameScreen(self.game_id))  # the game has started
+            # the game has started (or is already over)
+            self.app.switch_screen(
+                FinalScreen(self.game_id) if view.status == GameStatus.FINISHED else GameScreen(self.game_id)
+            )
             return
         if view is None or view.status != GameStatus.WAITING:
             self._close()  # left, deleted or expired: the lobby shows the rest
@@ -516,7 +520,6 @@ class GameScreen(Screen):
     #main { width: 1fr; height: auto; }
     #draft { height: 8; }
     #counter { height: 1; margin-bottom: 1; }
-    #story { height: auto; }
     #game-actions { margin: 1 1 0 1; }
     """
 
@@ -547,9 +550,6 @@ class GameScreen(Screen):
                     yield Static("", id="counter")
                     with Horizontal(classes="buttons"):
                         yield Button("Envoyer", id="send", variant="primary")
-                with Vertical(id="story-pane", classes="pane") as story:
-                    story.border_title = "L'histoire"
-                    yield Static("", id="story")
         with Horizontal(id="game-actions", classes="buttons"):
             yield Button("Retour", id="back")
         yield Footer(show_command_palette=False)
@@ -604,10 +604,12 @@ class GameScreen(Screen):
         if view.status == GameStatus.WAITING and app.screen is self:
             app.switch_screen(WaitingScreen(self.game_id))
             return
+        if view.status == GameStatus.FINISHED and app.screen is self:
+            app.switch_screen(FinalScreen(self.game_id))  # the story is revealed
+            return
         self.query_one(TopBar).refresh_bar()
         self.query_one(Banner).refresh_banner()
         running = view.status == GameStatus.RUNNING
-        finished = view.status == GameStatus.FINISHED
 
         info = Text()
         info.append("Thème\n", style=colors.muted)
@@ -628,10 +630,7 @@ class GameScreen(Screen):
 
         primer_pane = self.query_one("#primer-pane")
         write_pane = self.query_one("#write-pane")
-        story_pane = self.query_one("#story-pane")
-        primer_pane.display = not finished
         write_pane.display = running and view.my_turn
-        story_pane.display = finished
         if running and view.my_turn:
             primer_pane.border_title = "Amorce"
             self.query_one("#primer", Static).update(primer_help(view))
@@ -646,8 +645,6 @@ class GameScreen(Screen):
             else:
                 tail = "Ton tour est passé : tu verras l'histoire complète à la fin."
             self.query_one("#primer", Static).update(f"C'est le tour de {view.current_player}.\n{tail}")
-        elif finished:
-            self.query_one("#story", Static).update(self._story_text(view))
         self._was_my_turn = bool(running and view.my_turn)
         self.refresh_bindings()  # the footer follows the state (send, leave...)
         focused = app.focused
@@ -655,18 +652,6 @@ class GameScreen(Screen):
             self._place_focus()
         elif app.screen is self and isinstance(focused, TextArea) and not write_pane.display:
             self._place_focus()
-
-    @staticmethod
-    def _story_text(view) -> Text:
-        text = Text()
-        for part in view.story or []:
-            text.append(f"{part.author}\n", style=f"bold {colors.secondary}")
-            text.append(f"{part.text}\n\n")
-        if not view.story:
-            text.append("Personne n'a écrit.", style=colors.muted)
-        if view.skipped:
-            text.append("Tours sautés : " + ", ".join(view.skipped), style=colors.muted)
-        return text
 
     def _update_counter(self, view) -> None:
         draft = self.query_one("#draft", TextArea).text
@@ -715,3 +700,133 @@ class GameScreen(Screen):
             await self.action_send()
         else:
             self._close()
+
+
+class FinalScreen(Screen):
+    """The finished story: read it, copy it, save it as .md or .txt."""
+
+    ready = False
+    BINDINGS = [
+        Binding("ctrl+s", "save", "Enregistrer"),
+        Binding("ctrl+y", "copy", "Copier"),
+        Binding("escape", "back", "Retour"),
+    ]
+    CSS = """
+    #final-body { height: 1fr; padding: 1 1 0 1; }
+    #final-side { width: 34; height: auto; margin-right: 1; }
+    #final-main { width: 1fr; height: 1fr; }
+    #story-scroll { height: 1fr; }
+    #save-pane { margin: 1 1 0 1; height: auto; }
+    #save-pane .frow { margin-bottom: 0; }
+    #final-actions { height: 1; margin-top: 1; }
+    """
+
+    def __init__(self, game_id: str) -> None:
+        super().__init__()
+        self.game_id = game_id
+
+    def compose(self) -> ComposeResult:
+        config = self.app.config
+        yield TopBar("L'histoire")
+        yield Banner()
+        with Horizontal(id="final-body"):
+            with Vertical(id="final-side"):
+                with Vertical(id="final-info-pane", classes="pane") as info:
+                    info.border_title = "Partie terminée"
+                    yield Static("", id="final-info")
+            with Vertical(id="final-main", classes="pane") as main:
+                main.border_title = "L'histoire"
+                with NavScroll(id="story-scroll"):
+                    yield Static("", id="story")
+        with Vertical(id="save-pane", classes="pane") as save:
+            save.border_title = "Garder l'histoire"
+            yield _field("Dossier", NavInput(value=config.export_dir or export.default_export_dir(), id="export-dir"))
+            yield _field(
+                "Format",
+                NavSelect([(label, key) for key, label in export.FORMATS.items()], value="md", allow_blank=False, id="export-format"),
+            )
+            with Horizontal(id="final-actions"):
+                yield Button("Enregistrer", id="save", variant="primary")
+                yield Button("Copier", id="copy")
+                yield Button("Retour", id="back")
+        yield Footer(show_command_palette=False)
+
+    def on_mount(self) -> None:
+        self.ready = True
+        self.refresh_view()
+        self.query_one("#story-scroll").focus()
+
+    def _close(self) -> None:
+        if self.app.screen is self:
+            self.app.pop_screen()
+
+    def refresh_view(self) -> None:
+        app = self.app
+        view = app.games.get(self.game_id)
+        if view is None:
+            self._close()
+            return
+        self.query_one(TopBar).refresh_bar()
+        self.query_one(Banner).refresh_banner()
+        parts = view.story or []
+        info = Text()
+        info.append("Thème\n", style=colors.muted)
+        info.append(f"{view.settings.theme or 'aucun'}\n\n")
+        info.append("Auteurs\n", style=colors.muted)
+        for name in export.authors(view) or ["personne"]:
+            info.append(f"{name}\n", style="bold" if name == app.pseudo else "")
+        if view.skipped:
+            info.append("\nTours sautés\n", style=colors.muted)
+            info.append(", ".join(view.skipped))
+        self.query_one("#final-info", Static).update(info)
+        story = Text()
+        for part in parts:
+            story.append(f"{part.author}\n", style=f"bold {colors.secondary}")
+            story.append(f"{part.text}\n\n")
+        if not parts:
+            story.append("Personne n'a écrit.", style=colors.muted)
+        self.query_one("#story", Static).update(story)
+
+    # --- actions ----------------------------------------------------------------
+
+    def _today(self):
+        return self.app.clock().astimezone().date()
+
+    def _view(self):
+        return self.app.games.get(self.game_id)
+
+    def action_copy(self) -> None:
+        view = self._view()
+        if view is None:
+            return
+        text = export.render_text(view, self._today())
+        tool = export.copy_with_system_tool(text)
+        self.app.copy_to_clipboard(text)  # also asks the terminal (works over SSH in most terminals)
+        if tool:
+            self.app.notify("Histoire copiée dans le presse-papiers.")
+        else:
+            self.app.notify("Histoire envoyée au terminal pour le presse-papiers (selon le terminal).")
+
+    def action_save(self) -> None:
+        view = self._view()
+        if view is None:
+            return
+        directory = self.query_one("#export-dir", Input).value.strip() or export.default_export_dir()
+        fmt = self.query_one("#export-format", Select).value
+        try:
+            path = export.save_story(view, fmt, directory, self._today())
+        except OSError as exc:
+            self.app.notify(f"Enregistrement impossible : {exc.strerror or exc}", severity="error")
+            return
+        config = self.app.config
+        if config.export_dir != directory:
+            config.export_dir = directory
+            if config.registered:
+                config.save(self.app.config_path)
+        self.app.notify(f"Enregistré : {path}")
+
+    def action_back(self) -> None:
+        self._close()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        {"save": self.action_save, "copy": self.action_copy}.get(event.button.id, self._close)()

@@ -1,4 +1,4 @@
-# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 11)
+# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 12)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -133,7 +133,7 @@ La logique de jeu reste pure (sans réseau ni disque), donc testable seule.
 2. `storage.py` + `server.py`, testés avec un client WebSocket de script. **Fait (84 tests au total).**
 3. Client Textual : lobby, création, salle d'attente. **Fait (130 tests au total).**
 4. Écran de partie et reprise à la connexion.
-5. Écran final, export, packaging `pipx`.
+5. Écran final, export, packaging `pipx`. **Fait (193 tests au total).**
 6. Déploiement sur VPS (WSS) et essais en conditions réelles.
 
 ## 15. Après la v1
@@ -176,7 +176,7 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Salle d'attente : code, joueurs (♛ = hôte), réglages, prochaine étape. `Ctrl+L` lance (hôte, 3 joueurs minimum), `Ctrl+O` quitte la partie, `Échap` revient au lobby.
 - Les captures du README se régénèrent avec `scripts/screenshots.py` (serveur jetable + pilote de test Textual + `rsvg-convert`).
 
-## 20. Navigation clavier, installation (révision 11)
+## 20. Navigation clavier, installation (révision 12)
 - `cadav/client/widgets.py` : `NavInput` (champ à deux modes), `NavSelect` (choix : seuls `Entrée` et `Espace` l'ouvrent, `↑` `↓` ne l'ouvrent plus) et `NavOptionList` (liste qui passe le focus à l'élément voisin à ses extrémités, `Espace` comme `Entrée`). Les touches de navigation globales (`↑` `←` précédent, `↓` `→` suivant, `Tab`) sont des liaisons de l'application ; un menu ouvert ou un champ en cours de modification les reçoit en premier.
 - Hors modification, `NavInput` ne consomme ni les flèches ni `Espace` (voir §21 pour la saisie directe). En modification, `↑` et `↓` sont sans effet, `←` `→` déplacent le curseur, un clic entre dans le champ, et perdre le focus valide la saisie.
 - `Entrée` dans un champ ne fait que valider le champ (sauf le champ « code » du lobby, qui rejoint la partie). Sur l'écran de connexion, on valide la connexion avec le bouton « Entrer ».
@@ -184,7 +184,7 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Le paquet Python s'appelle `cadav/` (renommé depuis `cadavre/`). La commande est installable globalement : `uv tool install --editable .` (ou `pipx install --editable .`) place `cadav` dans `~/.local/bin`.
 - Données du serveur par défaut : `$XDG_DATA_HOME/cadav` ou `~/.local/share/cadav` (et non plus `./data`), pour que `cadav serve` se comporte de la même façon quel que soit le dossier courant.
 
-## 21. Palette, focus, saisie directe (révision 11)
+## 21. Palette, focus, saisie directe (révision 12)
 - Palette par défaut : « galaxy », le thème de base de Posting repris sans modification (fichier `themes.py` de Posting) : primaire `#C45AFF`, secondaire `#a684e8`, avertissement `#FFD700`, erreur `#FF4500`, succès `#00FA9A`, accent `#FF69B4`, fond `#0F0F1F`, surface `#1E1E3F`, panneau `#2D2B55`, pied de page transparent, curseur de saisie `#C45AFF`. Pas de couleur de texte imposée : Textual la calcule, comme pour Posting (`auto 87 %`). Les nuances propres à cadav (gris du texte secondaire, ligne sélectionnée `#4b2c7a`, bordure atténuée, blanc d'édition) sont dérivées de ces couleurs. Option : `solarized-dark` (accent orange Solarized `#cb4b16`). Choix par `cadav play --theme …` ou par la clé `theme` de `config.json`.
 - La feuille de style n'emploie que des variables de thème (`$accent`, `$cadav-focus`, `$cadav-editing`…) ; les styles Rich des écrans lisent la palette courante (`theme.colors`).
 - Focus : l'élément qui a le focus est en vidéo inverse (fond rose d'accentuation, texte de la couleur du fond, rapport de contraste d'environ 7:1 avec « galaxy ») ; son panneau a une bordure épaisse rose et un titre blanc ; la ligne sélectionnée d'une liste sans focus est en violet foncé ; un champ en cours de modification est blanc, curseur inversé. Le second texte des lignes de liste n'est jamais grisé, pour rester lisible en vidéo inverse.
@@ -201,3 +201,12 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Bandeau discret (une ligne sous la barre du haut, 12 secondes) pour ce qui se passe dans les autres parties : « À toi dans « thème » », « le tour de X est passé », « est terminée », « est lancée ». Rien n'est affiché pour la partie que l'on regarde.
 - Reprise : à la connexion, `my_games` redonne chaque partie avec sa projection (amorce comprise si c'est ton tour) ; le lobby marque `À TOI`, et `Ctrl+T` ouvre la partie. Rejoindre une partie qui démarre aussitôt (dernière place) ouvre directement l'écran de partie ; la salle d'attente se transforme en écran de partie au lancement.
 - Raccourci de départ : `Ctrl+O` (et non `Ctrl+X`, que la zone de saisie utilise pour couper).
+
+## 23. Écran final, export, paquet (jalon 5, révision 12)
+- `FinalScreen` remplace le panneau d'histoire de l'écran de partie : il s'ouvre tout seul quand la partie se termine, ou depuis le lobby sur une partie `TERMINÉE` (le serveur les garde 7 jours, voir §10). Panneaux « Partie terminée » (thème, auteurs, tours sautés), « L'histoire » (défilement ; les flèches passent le focus au voisin quand on ne peut plus défiler) et « Garder l'histoire ».
+- Export (`cadav/client/export.py`, pur et testé seul) : deux formats, Markdown (`# thème`, ligne en italique « Cadavre exquis écrit le 8 octobre 2026 par … », chaque contribution sous son auteur en gras, tours sautés) et texte brut (titre souligné, `— auteur —`). Nom de fichier : `cadav-<thème-sans-accents>-<AAAA-MM-JJ>.<md|txt>`, jamais d'écrasement (`-2`, `-3`…). Écriture atomique.
+- Dossier d'export : champ modifiable, mémorisé dans la configuration (`export_dir`) après un enregistrement ; par défaut `~/Documents/cadav` si `~/Documents` existe, sinon `~/cadav`. Une erreur d'écriture est affichée sans fermer l'écran.
+- Presse-papiers : texte brut de l'histoire. Le client appelle d'abord l'outil du système (`pbcopy`, `wl-copy`, `xclip`, `xsel` ou `clip`) puis demande aussi au terminal (OSC 52, utile à travers SSH) ; le message dit lequel a servi. Aucune dépendance ajoutée.
+- Raccourcis : `Ctrl+S` enregistre, `Ctrl+Y` copie, `Échap` revient au lobby. `Ctrl+G` ignore les parties terminées.
+- Paquet : nom `cadav`, version unique dans `cadav/__version__` (0.5.0), `cadav --version`, métadonnées (`readme`, URLs, classifiers). Installation : `pipx install git+https://github.com/charlescoiffier/cadav` (ou `uv tool install`). Pas de publication sur PyPI à ce stade, ni de licence choisie.
+- CI : après les tests, un job construit la roue, l'installe dans un environnement vierge et lance `cadav --version`, `cadav serve --help` et `cadav play --help` ; la roue est gardée 7 jours comme artefact.

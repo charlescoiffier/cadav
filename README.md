@@ -2,14 +2,13 @@
 
 [![CI](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml/badge.svg)](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-![Jalon](https://img.shields.io/badge/jalon-4%20sur%206-orange)
+![Jalon](https://img.shields.io/badge/jalon-5%20sur%206-orange)
 
 **cadav** est un jeu de cadavre exquis textuel et multijoueur, à jouer dans le terminal. Un serveur central gère le lobby et toutes
 les parties ; chaque joueur écrit à son tour un morceau d'histoire sans voir ce qu'ont écrit les autres.
 
-> **État du projet : en construction.** On peut déjà lancer un serveur, se connecter, créer ou rejoindre une partie et jouer une partie de bout en bout (jalons 1
-> à 4), en lisant l'histoire à la fin. L'écran final complet (copie, export) et l'installation avec `pipx` arrivent aux
-> jalons suivants.
+> **État du projet : en construction.** Le jeu est jouable de bout en bout, de la connexion à l'export de l'histoire (jalons 1 à 5). Il reste à le déployer sur un
+> serveur public avec TLS (jalon 6) : pour l'instant, on joue sur sa machine ou sur un réseau de confiance.
 
 ---
 
@@ -23,6 +22,17 @@ toujours absurde, parfois poétique.
 
 Ici, tout se passe dans le terminal. On se crée un pseudo en quelques secondes (sans mot de passe), on crée ou on
 rejoint une partie, puis on écrit quand vient son tour.
+
+## Installer
+
+Il faut Python 3.11 ou plus récent. Avec [pipx](https://pipx.pypa.io/) (ou `uv tool install`) :
+
+```bash
+pipx install git+https://github.com/charlescoiffier/cadav
+```
+
+Puis, pour jouer sur un serveur existant : `cadav play --url ws://adresse-du-serveur:8765`. Pour héberger soi-même : `cadav serve`.
+`cadav --version` affiche la version installée ; `pipx upgrade cadav` met à jour.
 
 ## Comment se déroule une partie
 
@@ -47,7 +57,7 @@ rejoint une partie, puis on écrit quand vient son tour.
 | 2 | Stockage JSON et serveur WebSocket | Fait |
 | 3 | Client : lobby, création, salle d'attente | Fait |
 | 4 | Écran de partie et reprise à la connexion | Fait |
-| 5 | Écran final, export (`.txt`, `.md`, presse-papiers), installation avec `pipx` | À faire |
+| 5 | Écran final, export (`.txt`, `.md`, presse-papiers), installation avec `pipx` | Fait |
 | 6 | Déploiement sur un serveur (WSS) et essais en conditions réelles | À faire |
 
 Le détail des règles et des décisions est dans le [cahier des charges](cahier-des-charges.md), qui fait référence.
@@ -66,7 +76,7 @@ Textual), avec exactement le thème de base de Posting (« galaxy »). Une palet
 |---|---|
 | ![Le formulaire de création d'une partie](docs/images/creation.png) | ![La salle d'attente avec le code, les réglages et les joueurs](docs/images/salle-attente.png) |
 
-| À toi d'écrire : l'amorce, ton texte et son compteur | L'histoire révélée à la fin |
+| À toi d'écrire : l'amorce, ton texte et son compteur | L'écran final : l'histoire à copier ou à exporter |
 |---|---|
 | ![L'écran de partie : amorce, zone de saisie, compteur de mots, échéance](docs/images/partie.png) | ![L'histoire complète, chaque contribution attribuée à son auteur](docs/images/histoire.png) |
 
@@ -96,6 +106,8 @@ modification passe en blanc.
 | Partie | `Ctrl+S` | Envoyer son texte (quand c'est ton tour) |
 | | `Échap` | Sortir de la zone de saisie, puis revenir au lobby |
 | | `Ctrl+O` | Quitter la partie (à presser deux fois) |
+| Écran final | `Ctrl+S` | Enregistrer l'histoire (dossier et format au choix : `.md` ou `.txt`) |
+| | `Ctrl+Y` | Copier l'histoire dans le presse-papiers |
 | Lobby, salle, partie | `Ctrl+T` | Aller à une partie qui attend ton texte |
 | | `Ctrl+G` | Passer à ta partie suivante |
 | Partout | `Ctrl+Q` | Quitter |
@@ -134,7 +146,7 @@ L'installation est « éditable » : les modifications du code sont prises en co
 - Client : [Textual](https://textual.textualize.io/)
 - Messages : [Pydantic](https://docs.pydantic.dev/), dans un module partagé client/serveur
 - Tests : `pytest` et `pytest-asyncio`
-- Distribution : paquet installable avec `pipx` (jalon 5)
+- Distribution : paquet installable avec `pipx`
 
 ## Organisation du code
 
@@ -149,7 +161,8 @@ cadav/
     theme.py       # palettes (galaxy, solarized-dark), thème Textual, feuille de style, pastilles
     widgets.py     # champs, choix et listes pilotés au clavier (mode navigation / édition)
     app.py         # application Textual : connexion, état, navigation
-    screens.py     # connexion, lobby, création, salle d'attente, partie (et leurs raccourcis)
+    screens.py     # connexion, lobby, création, salle d'attente, partie, écran final (et leurs raccourcis)
+    export.py      # histoire en texte ou Markdown, fichiers, presse-papiers (pur, testé seul)
     connection.py  # WebSocket client avec reconnexion
     config.py      # pseudo, secret et serveur, en local
     logic.py       # formulaire et textes affichés (pur, testé seul)
@@ -161,6 +174,7 @@ tests/
   test_client.py   # l'application Textual pilotée contre un vrai serveur
   test_client_logic.py
   test_cli.py
+  test_export.py
 cahier-des-charges.md
 scripts/
   screenshots.py   # régénère les captures du README
@@ -204,7 +218,8 @@ remplacez `cadav` par `.venv/bin/cadav` (sur macOS la commande `python` n'existe
 ```
 
 Le workflow [`ci.yml`](.github/workflows/ci.yml) lance les tests à chaque push et chaque pull request, sur Python 3.11,
-3.12, 3.13 et 3.14. Le badge « CI » en haut de ce fichier reflète le dernier run sur `main`.
+3.12, 3.13 et 3.14, puis construit le paquet et l'installe dans un environnement vierge pour vérifier que `cadav` démarre
+(la roue est conservée une semaine comme artefact du run). Le badge « CI » en haut de ce fichier reflète le dernier run sur `main`.
 
 ## Conventions
 

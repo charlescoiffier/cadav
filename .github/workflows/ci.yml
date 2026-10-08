@@ -30,3 +30,28 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: python -m pip install -e '.[dev]'
       - run: python -m pytest -q
+
+  package:
+    # The wheel must install and start in a clean environment, like `pipx install` would.
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install build
+      - run: python -m build
+      - name: Installer la roue dans un environnement vierge
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          cd /tmp
+          /tmp/clean/bin/cadav --version
+          /tmp/clean/bin/cadav serve --help
+          /tmp/clean/bin/cadav play --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cadav-dist
+          path: dist
+          retention-days: 7
