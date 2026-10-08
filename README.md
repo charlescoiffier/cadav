@@ -91,9 +91,11 @@ Tout se fait sans souris, avec deux modes :
   annule. Dans un choix ouvert, `↑` `↓` parcourent les options, `Entrée` ou `Espace` valident et `Échap` referme sans rien
   changer ; sur un choix fermé, taper une lettre ou un chiffre saute à l'option correspondante.
 
-Les raccourcis généraux affichés en bas de la fenêtre utilisent tous `Ctrl`, pour ne jamais gêner la saisie. L'élément qui a
-le focus est dessiné en couleur pleine (le rose d'accentuation du thème), son panneau reçoit une bordure épaisse rose, et un champ en cours de
-modification passe en blanc.
+Les raccourcis généraux affichés en bas de la fenêtre utilisent tous `Ctrl`, pour ne jamais gêner la saisie. Comme dans
+Posting, le panneau qui a le focus garde un cadre fin mais pleinement coloré (les autres sont atténués) et son titre passe
+en blanc gras ; un champ ou une zone de texte focalisés ont une barre rose sur leur bord gauche (le champ en cours de
+modification prend un fond plus clair et un curseur plein) ; la ligne, le bouton ou le choix sélectionnés sont en couleur
+pleine (le violet du thème).
 
 | Écran | Touches | Effet |
 |---|---|---|

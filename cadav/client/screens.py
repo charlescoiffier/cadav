@@ -20,6 +20,7 @@ from cadav.client.logic import (
     turn_position,
     word_status,
 )
+from cadav import __version__
 from cadav.client import export
 from cadav.client.widgets import NavInput, NavOptionList, NavScroll, NavSelect
 from cadav.client.theme import chip, colors
@@ -64,7 +65,7 @@ class TopBar(Horizontal):
     def refresh_bar(self) -> None:
         app = self.app
         self.query_one("#brand", Static).update(
-            Text.assemble(("▌cadav", "bold"), (f"  ›  {self.place}", colors.muted))
+            Text.assemble(("cadav", "bold"), (f"\u00a0{__version__}", colors.muted), (f"\u00a0\u00a0\u00a0›\u00a0\u00a0\u00a0{self.place}", colors.muted))
         )
         dot, color, label = state_text(app.status)
         server = app.config.url.split("://", 1)[-1]
@@ -186,10 +187,10 @@ class LobbyScreen(Screen):
         Binding("ctrl+k", "focus_code", "Code"),
     ]
     CSS = """
-    #lobby-body { height: auto; padding: 1 1 0 1; }
+    #lobby-body { height: auto; padding: 0 2; }
     #mine-pane, #public-pane { width: 1fr; height: auto; max-height: 100%; }
     #mine-pane { margin-right: 1; }
-    #join-pane { margin: 1 1 0 1; height: auto; }
+    #join-pane { margin: 1 2 0 2; height: auto; }
     #join-pane Input { width: 24; margin-right: 1; }
     #join-pane .actions { width: 1fr; height: 1; align-horizontal: right; }
     """
@@ -280,7 +281,7 @@ class CreateScreen(Screen):
         Binding("escape", "back", "Annuler"),
     ]
     CSS = """
-    #create-body { height: auto; padding: 1 1 0 1; }
+    #create-body { height: auto; padding: 0 2; }
     #form-pane, #rules-pane { width: 1fr; height: auto; }
     #form-pane { margin-right: 1; }
     #form-error { height: auto; }
@@ -385,10 +386,10 @@ class WaitingScreen(Screen):
         Binding("escape", "back", "Retour"),
     ]
     CSS = """
-    #waiting-body { height: auto; padding: 1 1 0 1; }
+    #waiting-body { height: auto; padding: 0 2; }
     #left, #right { width: 1fr; height: auto; }
     #left { margin-right: 1; }
-    #waiting-actions { margin: 1 1 0 1; }
+    #waiting-actions { margin: 1 2 0 2; }
     #code-line { text-align: center; padding: 1 0; }
     """
 
@@ -515,12 +516,12 @@ class GameScreen(Screen):
         Binding("escape", "back", "Retour"),
     ]
     CSS = """
-    #game-body { height: auto; padding: 1 1 0 1; }
+    #game-body { height: auto; padding: 0 2; }
     #side { width: 34; height: auto; margin-right: 1; }
     #main { width: 1fr; height: auto; }
-    #draft { height: 8; }
+    #draft { height: 6; }
     #counter { height: 1; margin-bottom: 1; }
-    #game-actions { margin: 1 1 0 1; }
+    #game-actions { margin: 1 2 0 2; }
     """
 
     def __init__(self, game_id: str) -> None:
@@ -712,11 +713,11 @@ class FinalScreen(Screen):
         Binding("escape", "back", "Retour"),
     ]
     CSS = """
-    #final-body { height: 1fr; padding: 1 1 0 1; }
+    #final-body { height: 1fr; padding: 0 2; }
     #final-side { width: 34; height: auto; margin-right: 1; }
     #final-main { width: 1fr; height: 1fr; }
     #story-scroll { height: 1fr; }
-    #save-pane { margin: 1 1 0 1; height: auto; }
+    #save-pane { margin: 1 2 0 2; height: auto; }
     #save-pane .frow { margin-bottom: 0; }
     #final-actions { height: 1; margin-top: 1; }
     """

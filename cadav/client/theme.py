@@ -35,8 +35,8 @@ class Palette:
     warning: str
     error: str
     highlight: str  # selected row of a list that does not have the focus
-    focus: str  # background of the element that has the focus (text is drawn in `background`)
-    editing: str  # background of a field being edited
+    focus: str  # "block cursor": background of the selected row, button or choice (text in `background`)
+    editing: str  # background of a field being edited (the focused field only gets a bar on its left)
 
 
 # Posting's default theme, "galaxy": the colours below are those of its themes.py (primary, secondary,
@@ -59,8 +59,8 @@ GALAXY = Palette(
     warning="#FFD700",
     error="#FF4500",
     highlight="#4b2c7a",
-    focus="#FF69B4",  # the accent
-    editing="#ffffff",
+    focus="#C45AFF",  # the primary: Posting's "block cursor" colour
+    editing="#2D2B55",  # the panel colour
 )
 
 # Solarized (Ethan Schoonover), dark variant, canonical values.
@@ -81,8 +81,8 @@ SOLARIZED_DARK = Palette(
     warning="#b58900",
     error="#dc322f",
     highlight="#0b4452",
-    focus="#2aa198",
-    editing="#eee8d5",
+    focus="#268bd2",
+    editing="#0b3f4d",
 )
 
 PALETTES = {p.name: p for p in (GALAXY, SOLARIZED_DARK)}
@@ -123,8 +123,8 @@ def build_theme(p: Palette) -> Theme:
             "cadav-border-dim": p.border_dim,
             "border": p.primary,
             "border-blurred": p.border_dim,
-            "footer-key-foreground": p.background,
-            "footer-key-background": p.primary,
+            "footer-key-foreground": p.accent,
+            "footer-key-background": "transparent",
             "footer-description-foreground": "auto 87%" if p.foreground is None else p.foreground,
             "footer-background": "transparent",
             "input-cursor-background": p.primary,
@@ -143,51 +143,50 @@ def chip(label: str, color: str, fg: str | None = None) -> Text:
 APP_CSS = """
 Screen { background: $background; color: $cadav-text; }
 
-/* top bar and footer */
-TopBar { height: 1; dock: top; background: $surface; padding: 0 1; }
-TopBar #brand { width: 1fr; color: $secondary; text-style: bold; }
+/* header (airy, like Posting's) and footer (discreet: accent keys on a transparent bar) */
+TopBar { height: 3; dock: top; padding: 1 3; background: $background; }
+TopBar #brand { width: 1fr; color: $primary; }
 TopBar #status { width: auto; color: $cadav-muted; }
-Footer { background: $footer-background; }
+Footer { background: $footer-background; padding-left: 2; }
 FooterKey { background: $footer-background; }
-FooterKey .footer-key--key { background: $primary; color: $cadav-on-color; text-style: bold; }
-FooterKey .footer-key--description { color: $cadav-text; background: $footer-background; }
+FooterKey .footer-key--key { color: $accent; text-style: bold; }
+FooterKey .footer-key--description { color: $cadav-text; }
 
-/* panels: rounded border with the title inside; heavy accent border when they hold the focus */
+/* panels: thin rounded border in the accent colour, title on the right in the same colour;
+   the panel that holds the focus gets a full-strength border and a bold white title */
 .pane {
-    border: round $cadav-border-dim;
-    border-title-color: $secondary;
-    border-title-style: bold;
+    border: round $accent 40%;
+    border-title-color: $accent 50%;
+    border-title-align: right;
     border-subtitle-color: $cadav-muted;
     background: $background;
     padding: 0 1;
     height: auto;
 }
-.pane:focus-within { border: heavy $accent; border-title-color: $cadav-strong; }
+.pane:focus-within { border: round $accent 100%; border-title-color: $cadav-strong; border-title-style: bold; }
 
-/* lists: the row that has the focus is drawn in inverse video */
+/* lists: the selected row is the "block cursor" (primary background) when the list has the focus */
 OptionList { border: none; background: transparent; padding: 0; height: auto; min-height: 3; max-height: 12; }
 OptionList:focus { border: none; background: transparent; }
 OptionList > .option-list--option { padding: 0 1; color: $cadav-text; }
 OptionList > .option-list--option-highlighted { background: $cadav-highlight; color: $cadav-strong; text-style: none; }
-OptionList:focus > .option-list--option-highlighted { background: $cadav-focus; color: $cadav-on-color; text-style: none; }
+OptionList:focus > .option-list--option-highlighted { background: $cadav-focus; color: $cadav-on-color; text-style: bold; }
 OptionList > .option-list--option-disabled { color: $cadav-muted; }
 
-/* one-line form fields */
+/* one-line form fields: a thin bar on the left marks the focused one */
 .frow { height: 1; margin-bottom: 1; }
 .flabel { width: 18; color: $cadav-muted; }
 Input { border: none; height: 1; padding: 0 1; background: $surface; width: 1fr; color: $cadav-strong; }
-Input:focus { border: none; background: $cadav-focus; color: $cadav-on-color; text-style: bold; }
+Input:focus { border: none; border-left: outer $accent; padding-left: 0; background: $surface; }
 Input.-invalid, Input.-invalid:focus { border: none; }
 Input > .input--placeholder { color: $cadav-muted; }
-NavInput:focus > .input--placeholder { color: $cadav-on-color 75%; }
 NavInput > .input--cursor { background: transparent; color: $cadav-strong; text-style: none; }
-NavInput:focus > .input--cursor { background: transparent; color: $cadav-on-color; text-style: bold; }
-NavInput.-editing, NavInput.-editing:focus { background: $cadav-editing; color: $cadav-on-color; text-style: none; }
-NavInput.-editing > .input--cursor { background: $cadav-on-color; color: $cadav-editing; text-style: bold; }
+NavInput.-editing, NavInput.-editing:focus { background: $cadav-editing; border-left: outer $accent; padding-left: 0; }
+NavInput.-editing > .input--cursor { background: $input-cursor-background; color: $cadav-on-color; text-style: bold; }
 Select { height: 1; width: 1fr; }
 Select > SelectCurrent { border: none; height: 1; padding: 0 1; background: $surface; color: $cadav-strong; }
 Select:focus > SelectCurrent { border: none; background: $cadav-focus; color: $cadav-on-color; text-style: bold; }
-SelectCurrent .arrow { color: $cadav-muted; }
+SelectCurrent .arrow { color: $text-disabled; }
 Select:focus > SelectCurrent .arrow { color: $cadav-on-color; }
 SelectOverlay { border: round $accent; background: $surface; color: $cadav-text; }
 
@@ -195,20 +194,18 @@ SelectOverlay { border: round $accent; background: $surface; color: $cadav-text;
 Button { min-width: 0; height: 1; border: none; padding: 0 2; margin-right: 1; background: $surface; color: $cadav-strong; text-style: none; }
 Button:hover { background: $cadav-highlight; }
 Button:focus { background: $cadav-focus; color: $cadav-on-color; text-style: bold; }
-Button.-primary { background: $primary; color: $cadav-on-color; text-style: bold; }
-Button.-primary:hover { background: $secondary; }
-Button.-primary:focus { background: $cadav-focus; }
+Button.-primary { background: $primary 40%; color: $accent; text-style: bold; }
+Button.-primary:hover { background: $primary 60%; }
+Button.-primary:focus { background: $cadav-focus; color: $cadav-on-color; }
 Button.-warning { background: $surface; color: $warning; }
 Button.-warning:focus { background: $cadav-focus; color: $cadav-on-color; }
-Button:disabled { opacity: 0.45; }
+Button:disabled { opacity: 0.4; }
 .buttons { height: 1; margin-top: 1; }
 
 /* multi-line text */
 TextArea { border: none; background: $surface; color: $cadav-strong; padding: 0 1; }
-TextArea:focus { border: none; background: $surface; }
-TextArea > .text-area--cursor { background: $cadav-focus; color: $cadav-on-color; text-style: bold; }
-TextArea > .text-area--cursor-line { background: $cadav-highlight; }
-TextArea > .text-area--selection { background: $primary 50%; }
+TextArea:focus { border: none; border-left: outer $accent; padding-left: 0; background: $surface; }
+TextArea > .text-area--cursor-line { background: $surface; }
 TextArea > .text-area--placeholder { color: $cadav-muted; }
 
 .muted { color: $cadav-muted; }
