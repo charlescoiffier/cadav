@@ -17,6 +17,7 @@ from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from http import HTTPStatus
 
 from cadav import game as G
 from cadav.game import Game, GameError
@@ -91,11 +92,13 @@ class Server:
         clock: Callable[[], datetime] = utcnow,
         rng: random.Random | None = None,
         limits: Limits | None = None,
+        trust_proxy: bool = False,
     ) -> None:
         self.storage = storage
         self.clock = clock
         self.rng = rng or random.Random()
         self.limits = limits or Limits()
+        self.trust_proxy = trust_proxy  # behind a reverse proxy: the client address is in X-Forwarded-For
         self.users: dict[str, dict[str, str]] = {}
         self.games: dict[str, Game] = {}
         self.sessions: dict[str, Session] = {}
@@ -127,13 +130,34 @@ class Server:
         """Return a ``websockets`` server, usable with ``async with``."""
         from websockets.asyncio.server import serve
 
-        return serve(self._ws_handler, host, port, ssl=ssl, max_size=MAX_MESSAGE_BYTES)
+        return serve(
+            self._ws_handler,
+            host,
+            port,
+            ssl=ssl,
+            max_size=MAX_MESSAGE_BYTES,
+            process_request=self._process_request,
+        )
+
+    def _process_request(self, connection, request):
+        """Plain HTTP requests: ``/health`` answers 200 (for monitoring and container health checks)."""
+        if request.path == "/health":
+            return connection.respond(HTTPStatus.OK, "ok\n")
+        return None  # anything else: the WebSocket handshake
+
+    def client_ip(self, ws) -> str:
+        """Address used for rate limiting: the proxy's ``X-Forwarded-For`` if trusted, else the socket's."""
+        if self.trust_proxy:
+            forwarded = ws.request.headers.get("X-Forwarded-For") if ws.request else None
+            if forwarded:
+                return forwarded.split(",")[0].strip()
+        remote = ws.remote_address
+        return remote[0] if remote else "?"
 
     async def _ws_handler(self, ws) -> None:
         from websockets.exceptions import ConnectionClosed
 
-        remote = ws.remote_address
-        session = Session(send=ws.send, close=ws.close, ip=remote[0] if remote else "?")
+        session = Session(send=ws.send, close=ws.close, ip=self.client_ip(ws))
         try:
             async for raw in ws:
                 await self.handle_raw(session, raw)
@@ -470,18 +494,44 @@ class Server:
         await self._send(session, ErrorMessage(game_id=game_id, code=code, message=message))
 
 
-def main(argv: list[str] | None = None) -> None:
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def exposure_problem(host: str, has_tls: bool, trust_proxy: bool, allow_insecure: bool) -> str | None:
+    """A French message when the server would be reachable from outside without encryption, else ``None``."""
+    if host in LOOPBACK or has_tls or trust_proxy or allow_insecure:
+        return None
+    return (
+        f"Refus d'écouter sur {host} sans chiffrement : les pseudos et les secrets passeraient en clair. "
+        "Fournis --cert et --key, ou place le serveur derrière un proxy TLS (--trust-proxy), "
+        "ou ajoute --allow-insecure pour un réseau de confiance."
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
     import argparse
+    import signal
     import ssl as ssl_lib
     from pathlib import Path
 
     parser = argparse.ArgumentParser(prog="cadav serve", description="cadav : serveur de cadavre exquis")
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default="127.0.0.1", help="adresse d'écoute (défaut : %(default)s)")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--data-dir", default=default_data_dir(), help="dossier des données (défaut : %(default)s)")
     parser.add_argument("--cert", help="certificat TLS (obligatoire si le serveur est public)")
     parser.add_argument("--key", help="clé privée TLS")
+    parser.add_argument(
+        "--trust-proxy",
+        action="store_true",
+        help="le serveur est derrière un proxy inverse qui gère le TLS : l'adresse des clients vient de X-Forwarded-For",
+    )
+    parser.add_argument("--allow-insecure", action="store_true", help="autoriser l'écoute publique sans TLS (réseau de confiance)")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     args = parser.parse_args(argv)
+
+    problem = exposure_problem(args.host, bool(args.cert), args.trust_proxy, args.allow_insecure)
+    if problem:
+        parser.error(problem)
 
     ctx = None
     if args.cert:
@@ -489,18 +539,30 @@ def main(argv: list[str] | None = None) -> None:
         ctx.load_cert_chain(args.cert, args.key)
 
     async def run() -> None:
-        server = Server(Storage(Path(args.data_dir)))
+        server = Server(Storage(Path(args.data_dir)), trust_proxy=args.trust_proxy)
         await server.start()
-        async with server.listen(args.host, args.port, ssl=ctx):
-            log.info("listening on %s:%s", args.host, args.port)
-            await asyncio.Future()
+        stop = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(sig, stop.set)
+            except NotImplementedError:  # Windows
+                pass
+        try:
+            async with server.listen(args.host, args.port, ssl=ctx):
+                log.info(
+                    "listening on %s:%s (%s), data in %s",
+                    args.host, args.port, "wss" if ctx else "ws", args.data_dir,
+                )
+                await stop.wait()
+                log.info("stopping")
+        finally:
+            await server.close()  # every change was already written: only the timers remain to stop
 
-    logging.basicConfig(level=logging.INFO)
-    try:
-        asyncio.run(run())
-    except KeyboardInterrupt:
-        pass
+    logging.basicConfig(level=args.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    asyncio.run(run())
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

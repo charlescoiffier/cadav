@@ -55,3 +55,24 @@ jobs:
           name: cadav-dist
           path: dist
           retention-days: 7
+
+  docker:
+    # L'image de déploiement doit se construire et répondre sur /health.
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f deploy/Dockerfile -t cadav .
+      - name: Démarrer le conteneur et attendre qu'il réponde
+        run: |
+          docker run -d --name cadav -p 8765:8765 -v cadav-data:/data cadav
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8765/health && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8765/health
+          docker logs cadav
+      - name: Arrêt propre (SIGTERM) avec code de sortie 0
+        run: |
+          docker stop cadav
+          test "$(docker inspect -f '{{.State.ExitCode}}' cadav)" = "0"

@@ -1,0 +1,4 @@
+# Caddy installé sur la machine, en face du service cadav.service (copier dans /etc/caddy/Caddyfile).
+cadav.exemple.org {
+	reverse_proxy 127.0.0.1:8765
+}

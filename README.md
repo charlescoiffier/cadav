@@ -7,8 +7,9 @@
 **cadav** est un jeu de cadavre exquis textuel et multijoueur, à jouer dans le terminal. Un serveur central gère le lobby et toutes
 les parties ; chaque joueur écrit à son tour un morceau d'histoire sans voir ce qu'ont écrit les autres.
 
-> **État du projet : en construction.** Le jeu est jouable de bout en bout, de la connexion à l'export de l'histoire (jalons 1 à 5). Il reste à le déployer sur un
-> serveur public avec TLS (jalon 6) : pour l'instant, on joue sur sa machine ou sur un réseau de confiance.
+> **État du projet : en construction.** Le jeu est jouable de bout en bout, de la connexion à l'export de l'histoire (jalons 1 à 5). Le déploiement sur un serveur public est préparé
+> (jalon 6, [guide](docs/deploiement.md)) mais pas encore fait : faute d'hébergement, on joue pour l'instant sur sa machine, sur
+> un réseau de confiance ou via un réseau privé virtuel.
 
 ---
 
@@ -31,7 +32,8 @@ Il faut Python 3.11 ou plus récent. Avec [pipx](https://pipx.pypa.io/) (ou `uv 
 pipx install git+https://github.com/charlescoiffier/cadav
 ```
 
-Puis, pour jouer sur un serveur existant : `cadav play --url ws://adresse-du-serveur:8765`. Pour héberger soi-même : `cadav serve`.
+Puis, pour jouer sur un serveur existant : `cadav play --url wss://adresse-du-serveur`. Pour héberger soi-même : `cadav serve`
+(voir [le guide d'hébergement](docs/deploiement.md)).
 `cadav --version` affiche la version installée ; `pipx upgrade cadav` met à jour.
 
 ## Comment se déroule une partie
@@ -58,7 +60,7 @@ Puis, pour jouer sur un serveur existant : `cadav play --url ws://adresse-du-ser
 | 3 | Client : lobby, création, salle d'attente | Fait |
 | 4 | Écran de partie et reprise à la connexion | Fait |
 | 5 | Écran final, export (`.txt`, `.md`, presse-papiers), installation avec `pipx` | Fait |
-| 6 | Déploiement sur un serveur (WSS) et essais en conditions réelles | À faire |
+| 6 | Déploiement sur un serveur (WSS) et essais en conditions réelles | Préparé (voir [le guide](docs/deploiement.md)) ; en attente d'un hébergement |
 
 Le détail des règles et des décisions est dans le [cahier des charges](cahier-des-charges.md), qui fait référence.
 
@@ -177,7 +179,12 @@ tests/
   test_client_logic.py
   test_cli.py
   test_export.py
+  test_process.py  # le serveur comme vrai processus : partie, SIGTERM, redémarrage, TLS
 cahier-des-charges.md
+deploy/
+  Dockerfile, docker-compose.yml, Caddyfile, cadav.service   # héberger un serveur
+docs/
+  deploiement.md   # guide d'hébergement et liste de contrôle
 scripts/
   screenshots.py   # régénère les captures du README
 ```

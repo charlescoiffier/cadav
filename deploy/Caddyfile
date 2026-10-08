@@ -1,0 +1,4 @@
+# Proxy inverse : HTTPS automatique, WebSocket transmis tel quel, adresse du client dans X-Forwarded-For.
+{$CADAV_DOMAIN} {
+	reverse_proxy cadav:8765
+}

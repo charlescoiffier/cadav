@@ -418,3 +418,59 @@ async def test_state_survives_restart(tmp_path):
         assert (await c.until("my_games"))["games"][0]["game_id"] == gid
     finally:
         await e2.shutdown()
+
+
+# --- deployment: health check, reverse proxy, exposure guard --------------------
+
+
+async def http_get(port, path):
+    reader, writer = await asyncio.open_connection("127.0.0.1", port)
+    writer.write(f"GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".encode())
+    await writer.drain()
+    data = await asyncio.wait_for(reader.read(), 3)
+    writer.close()
+    return data.decode()
+
+
+async def test_health_endpoint_answers_plain_http(env):
+    reply = await http_get(env.port, "/health")
+    assert reply.startswith("HTTP/1.1 200") and reply.endswith("ok\n")
+    assert "101" not in reply.splitlines()[0]  # not a WebSocket upgrade
+    c = await env.connect()  # the WebSocket handshake still works on other paths
+    await c.send("list_games")
+    assert (await c.recv())["code"] == "not_authenticated"
+
+
+async def test_rate_limit_uses_the_forwarded_address_only_behind_a_trusted_proxy(tmp_path):
+    for trusted in (True, False):
+        e = Env(tmp_path / str(trusted), Limits(auth_attempts=2))
+        await e.boot()
+        e.server.trust_proxy = trusted
+        try:
+            results = []
+            for forwarded in ("10.0.0.1", "10.0.0.1", "10.0.0.1", "10.0.0.2"):
+                ws = await websockets.connect(
+                    f"ws://127.0.0.1:{e.port}", additional_headers={"X-Forwarded-For": f"{forwarded}, 172.16.0.9"}
+                )
+                c = Client(ws)
+                e.clients.append(c)
+                await c.send("auth", pseudo="ghost", secret="x")
+                results.append((await c.recv())["code"])
+            if trusted:  # 10.0.0.1 is blocked after two failures, 10.0.0.2 is a different client
+                assert results == ["bad_credentials", "bad_credentials", "too_many_attempts", "bad_credentials"]
+            else:  # the header is ignored: everyone shares the proxy's address and is blocked
+                assert results == ["bad_credentials", "bad_credentials", "too_many_attempts", "too_many_attempts"]
+        finally:
+            await e.shutdown()
+
+
+def test_exposure_guard():
+    from cadav.server import exposure_problem
+
+    assert exposure_problem("127.0.0.1", False, False, False) is None
+    assert exposure_problem("localhost", False, False, False) is None
+    assert exposure_problem("0.0.0.0", True, False, False) is None  # TLS
+    assert exposure_problem("0.0.0.0", False, True, False) is None  # TLS ended by a proxy
+    assert exposure_problem("0.0.0.0", False, False, True) is None  # explicit choice
+    message = exposure_problem("0.0.0.0", False, False, False)
+    assert message and "--cert" in message and "--trust-proxy" in message

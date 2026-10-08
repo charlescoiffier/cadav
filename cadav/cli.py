@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     elif command == "serve":
         from cadav.server import main as serve
 
-        serve(rest)
+        return serve(rest) or 0
     elif command == "play":
         from cadav.client.__main__ import main as play
 

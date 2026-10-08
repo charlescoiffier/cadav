@@ -1,4 +1,4 @@
-# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 15)
+# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 16)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -134,7 +134,7 @@ La logique de jeu reste pure (sans réseau ni disque), donc testable seule.
 3. Client Textual : lobby, création, salle d'attente. **Fait (130 tests au total).**
 4. Écran de partie et reprise à la connexion.
 5. Écran final, export, packaging `pipx`. **Fait (193 tests au total).**
-6. Déploiement sur VPS (WSS) et essais en conditions réelles.
+6. Déploiement sur VPS (WSS) et essais en conditions réelles. **Préparé, non déployé** : aucun hébergement choisi à ce jour (voir §27).
 
 ## 15. Après la v1
 Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode guidé (qui, quoi, où), plusieurs tours par joueur, SQLite, statistiques, amis.
@@ -176,7 +176,7 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Salle d'attente : code, joueurs (♛ = hôte), réglages, prochaine étape. `Ctrl+L` lance (hôte, 3 joueurs minimum), `Ctrl+O` quitte la partie, `Échap` revient au lobby.
 - Les captures du README se régénèrent avec `scripts/screenshots.py` (serveur jetable + pilote de test Textual + `rsvg-convert`).
 
-## 20. Navigation clavier, installation (révision 15)
+## 20. Navigation clavier, installation (révision 16)
 - `cadav/client/widgets.py` : `NavInput` (champ à deux modes), `NavSelect` (choix : seuls `Entrée` et `Espace` l'ouvrent, `↑` `↓` ne l'ouvrent plus) et `NavOptionList` (liste qui passe le focus à l'élément voisin à ses extrémités, `Espace` comme `Entrée`). Les touches de navigation globales (`↑` `←` précédent, `↓` `→` suivant, `Tab`) sont des liaisons de l'application ; un menu ouvert ou un champ en cours de modification les reçoit en premier.
 - Hors modification, `NavInput` ne consomme ni les flèches ni `Espace` (voir §21 pour la saisie directe). En modification, `↑` et `↓` sont sans effet, `←` `→` déplacent le curseur, un clic entre dans le champ, et perdre le focus valide la saisie.
 - `Entrée` dans un champ valide le champ puis fait passer le focus à l'élément suivant (le champ « code » du lobby rejoint en plus la partie) ; `Échap` annule sans bouger. Choisir une option dans un menu (`Entrée` ou `Espace`) fait de même ; refermer le menu avec `Échap`, ou taper une lettre sur un choix fermé, laisse le focus en place. Sur l'écran de connexion, on valide la connexion avec le bouton « Entrer ».
@@ -184,7 +184,7 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Le paquet Python s'appelle `cadav/` (renommé depuis `cadavre/`). La commande est installable globalement : `uv tool install --editable .` (ou `pipx install --editable .`) place `cadav` dans `~/.local/bin`.
 - Données du serveur par défaut : `$XDG_DATA_HOME/cadav` ou `~/.local/share/cadav` (et non plus `./data`), pour que `cadav serve` se comporte de la même façon quel que soit le dossier courant.
 
-## 21. Palette, focus, saisie directe (révision 15)
+## 21. Palette, focus, saisie directe (révision 16)
 - Palette par défaut : « galaxy », le thème de base de Posting repris sans modification (fichier `themes.py` de Posting) : primaire `#C45AFF`, secondaire `#a684e8`, avertissement `#FFD700`, erreur `#FF4500`, succès `#00FA9A`, accent `#FF69B4`, fond `#0F0F1F`, surface `#1E1E3F`, panneau `#2D2B55`, pied de page transparent, curseur de saisie `#C45AFF`. Pas de couleur de texte imposée : Textual la calcule, comme pour Posting (`auto 87 %`). Les nuances propres à cadav (gris du texte secondaire, ligne sélectionnée `#4b2c7a`, bordure atténuée, blanc d'édition) sont dérivées de ces couleurs. Option : `solarized-dark` (accent orange Solarized `#cb4b16`). Choix par `cadav play --theme …` ou par la clé `theme` de `config.json`.
 - La feuille de style n'emploie que des variables de thème (`$accent`, `$cadav-focus`, `$cadav-editing`…) ; les styles Rich des écrans lisent la palette courante (`theme.colors`).
 - Focus (repris du CSS de Posting, `posting.scss`) : panneaux `border: round $accent 40 %`, titre à droite en `$accent 50 %` (même couleur que le cadre) ; le panneau qui contient le focus passe à `round $accent 100 %` (toujours un cadre fin) avec un titre blanc gras. Champs et zones de texte : barre `outer` de la couleur du focus (primaire, la même que les menus, listes et boutons) sur le bord gauche quand ils ont le focus, pour les champs texte comme pour les champs numériques ; en modification, fond `$panel` et curseur plein (`input-cursor-background` = primaire, comme dans le thème galaxy). Ligne de liste, choix et bouton sélectionnés : « block cursor » = fond primaire, texte de la couleur du fond, gras ; ligne sélectionnée d'une liste sans focus : violet foncé `#4b2c7a`.
@@ -211,14 +211,14 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Paquet : nom `cadav`, version unique dans `cadav/__version__` (0.5.0), `cadav --version`, métadonnées (`readme`, URLs, classifiers). Installation : `pipx install git+https://github.com/charlescoiffier/cadav` (ou `uv tool install`). Pas de publication sur PyPI à ce stade, ni de licence choisie.
 - CI : après les tests, un job construit la roue, l'installe dans un environnement vierge et lance `cadav --version`, `cadav serve --help` et `cadav play --help` ; la roue est gardée 7 jours comme artefact.
 
-## 24. Fidélité à Posting (révision 15)
+## 24. Fidélité à Posting (révision 16)
 Relevé sur le dépôt de Posting (`posting.scss`, `app.py`, `widgets/select.py`, `themes.py`) et sur une capture de l'application :
 - En-tête : `padding: 1 3` (trois lignes), nom en gras et version en atténué, `utilisateur@hôte` à droite en atténué. Chez cadav : `cadav <version> › <écran>` à gauche, `pseudo@serveur ● état` à droite.
 - Pied de page : sans fond (transparent), `padding-left: 2`, touches en couleur d'accent et en gras, descriptions en texte normal ; pas de palette de commandes.
 - Choix (`Select`) : `Entrée`, `Espace` ouvrent ; `↑` `↓` déplacent le focus d'un champ à l'autre ; dans le menu ouvert `Entrée` et `Espace` valident. C'est le comportement de `PostingSelect` / `PostingSelectOverlay`, déjà celui de cadav.
 - Corps des écrans : marges latérales de 2 colonnes.
 
-## 25. Mise en page des écrans (révision 15)
+## 25. Mise en page des écrans (révision 16)
 Structure commune : barre du haut, bandeau éventuel, **corps pleine hauteur** (`height: 1fr`, largeur 100 % avec 2 colonnes de marge), puis un **panneau du bas** (`.bottom`, mêmes marges que le corps) juste au-dessus du pied de page.
 - Lobby : « Mes parties » et « Parties publiques » occupent toute la hauteur restante ; en bas, deux panneaux côte à côte, de la même largeur que les deux panneaux du dessus : « Rejoindre avec un code » à gauche (champ et bouton) et « Créer une partie » à droite (bouton, rappel de `Ctrl+N`).
 - Nouvelle partie : « Partie » et « Écriture » ont la même hauteur (toute la hauteur) ; le panneau du bas contient le message d'erreur à gauche et les boutons Créer et Annuler alignés à droite.
@@ -227,6 +227,14 @@ Structure commune : barre du haut, bandeau éventuel, **corps pleine hauteur** (
 - Écran final : « Partie terminée » et « L'histoire » pleine hauteur ; bords gauche et droit alignés sur ceux du panneau du bas « Garder l'histoire », dont les boutons sont à droite.
 - Les tests vérifient ces géométries (régions des panneaux et des boutons).
 
-## 26. Focus après un choix, champs numériques (révision 15)
+## 26. Focus après un choix, champs numériques (révision 16)
 - Après un choix dans un menu, `NavSelect` demande à l'écran où mettre le focus (`focus_after_choice`) ; sans réponse, c'est l'élément suivant. Formulaire de création : choisir « N derniers mots » met le focus sur le champ N (qui vient d'apparaître) ; choisir « Personnalisée… » le met sur le champ de durée.
 - Les champs numériques (N, mots minimum, mots maximum) acceptent d'être vides (`valid_empty`) : ils ne sont plus marqués invalides au départ, ce qui supprimait leur barre de focus. Un champ réellement invalide reçoit une barre rouge (`$error`), comme dans Posting.
+
+## 27. Déploiement (jalon 6, préparé, révision 16)
+Aucun hébergement n'est choisi pour le moment ; tout ce qui ne dépend pas de l'hébergeur est prêt, et chaque pièce est testée.
+- Serveur : option `--trust-proxy` (adresse du client lue dans `X-Forwarded-For`, pour la limitation par adresse), route `GET /health` en HTTP simple, arrêt propre sur `SIGTERM` / `SIGINT` (code 0), `--log-level`. Garde contre l'exposition par mégarde : écouter sur une adresse non locale exige `--cert` et `--key`, ou `--trust-proxy` (TLS terminé par un proxy), ou `--allow-insecure` (réseau de confiance) ; sinon le serveur refuse de démarrer.
+- Fichiers dans `deploy/` : `Dockerfile` (utilisateur non privilégié, volume `/data`, `HEALTHCHECK`), `docker-compose.yml` (serveur + Caddy avec HTTPS automatique), `Caddyfile`, `Caddyfile.systemd`, `cadav.service` (systemd durci : utilisateur dynamique, système de fichiers en lecture seule sauf `StateDirectory`, mémoire limitée).
+- Guide : `docs/deploiement.md` (jouer sans hébergeur : machine locale, réseau de confiance, réseau privé virtuel ; serveur public avec Docker, systemd ou TLS direct ; exploitation ; liste de contrôle de l'essai en conditions réelles).
+- Tests (`tests/test_process.py`) : le serveur lancé comme un vrai processus joue une partie complète sur de vraies connexions, s'arrête proprement sur `SIGTERM`, redémarre sur les mêmes données et retrouve l'archive ; une partie en cours est restaurée (ordre, tour) ; `/health` ; refus d'une adresse publique sans chiffrement ; partie complète en `wss://` avec un certificat de test (et refus d'un client qui ne connaît pas le certificat). La CI construit l'image Docker, attend `/health` et vérifie l'arrêt propre.
+- Reste à faire quand un hébergeur sera choisi : déployer, puis dérouler la liste de contrôle du guide sur des connexions réelles. Les clients utilisent `wss://` sans autre réglage ; le certificat est vérifié par le système.

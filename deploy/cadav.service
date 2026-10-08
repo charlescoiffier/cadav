@@ -1,0 +1,29 @@
+# Service systemd pour un serveur sans Docker.
+#
+#   sudo python3 -m venv /opt/cadav && sudo /opt/cadav/bin/pip install git+https://github.com/charlescoiffier/cadav
+#   sudo cp deploy/cadav.service /etc/systemd/system/ && sudo systemctl enable --now cadav
+#
+# Le TLS est à la charge d'un proxy (Caddy, nginx...) qui transmet vers 127.0.0.1:8765.
+# Les données sont dans /var/lib/cadav (créé et possédé par l'utilisateur dynamique du service).
+[Unit]
+Description=cadav, serveur de cadavre exquis
+After=network.target
+
+[Service]
+ExecStart=/opt/cadav/bin/cadav serve --host 127.0.0.1 --port 8765 --data-dir /var/lib/cadav --trust-proxy
+Restart=on-failure
+RestartSec=3
+DynamicUser=yes
+StateDirectory=cadav
+# Durcissement
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
