@@ -90,10 +90,10 @@ async def test_first_launch_registers_and_saves_config(backend):
     async with app.run_test(size=SIZE) as pilot:
         assert isinstance(app.screen, LoginScreen)
         assert app.focused.id == "pseudo"
-        await pilot.press(*"zzz")  # not editing yet: nothing is typed
-        assert app.screen.query_one("#pseudo", Input).value == ""
-        await pilot.press("enter", *"ana", "enter")  # enter the field, type, validate
-        assert app.screen.query_one("#pseudo", Input).value == "ana"
+        await pilot.press(*"ana")  # typing on the cell starts editing it straight away
+        assert app.screen.query_one("#pseudo", Input).value == "ana" and app.focused.editing
+        await pilot.press("enter")  # validate
+        assert not app.focused.editing and app.screen.query_one("#pseudo", Input).value == "ana"
         await pilot.press("down", "down", "enter")  # server field, then the "Entrer" button
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         await until(pilot, lambda: app.pseudo == "ana")
@@ -335,11 +335,11 @@ async def test_create_and_start_with_the_keyboard(backend):
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("n")  # the list has focus, so the shortcut is not typed into a field
+        await pilot.press("ctrl+n")
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         await pilot.press("ctrl+s")
         await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
-        await pilot.press("l")  # not enough players yet: nothing happens
+        await pilot.press("ctrl+l")  # not enough players yet: nothing happens
         await pilot.pause(0.2)
         assert next(iter(backend.server.games.values())).status == "waiting"
         code = next(iter(backend.server.games.values())).code
@@ -347,7 +347,7 @@ async def test_create_and_start_with_the_keyboard(backend):
             c = await backend.script_client(name)
             await c.send("join_game", code=code)
         await until(pilot, lambda: "3/4" in app.screen.query_one("#players-pane").border_title)
-        await pilot.press("l")
+        await pilot.press("ctrl+l")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         assert next(iter(backend.server.games.values())).status == "running"
 
@@ -361,13 +361,13 @@ async def test_code_shortcut_focuses_the_code_field_and_enter_joins(backend):
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("c")  # focuses the code field and starts editing it
+        await pilot.press("ctrl+k")  # focuses the code field and starts editing it
         assert app.focused.id == "code" and app.focused.editing
         await pilot.press(*code, "enter")
         await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
         await pilot.press("escape")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
-        await pilot.press("n")
+        await pilot.press("ctrl+n")
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         await pilot.press("escape")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
@@ -379,11 +379,11 @@ async def test_leave_with_the_keyboard(backend):
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("n")
+        await pilot.press("ctrl+n")
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         await pilot.press("ctrl+s")
         await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
-        await pilot.press("x")
+        await pilot.press("ctrl+x")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         assert backend.server.games == {}
 
@@ -401,7 +401,7 @@ async def test_arrows_and_tab_walk_through_the_create_form(backend):
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("n")
+        await pilot.press("ctrl+n")
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         order = ["visibility", "players", "deadline", "theme", "primer", "min-words", "max-words", "submit", "cancel"]
         assert focused_id(app) == "visibility"
@@ -427,21 +427,19 @@ async def test_field_enters_editing_with_enter_or_space_and_esc_cancels(backend)
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("n")
+        await pilot.press("ctrl+n")
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         await pilot.press("down", "down", "down")
         theme = app.screen.query_one("#theme", Input)
         assert app.focused is theme and not theme.editing
-        await pilot.press("a", "b")  # navigation mode: nothing typed
-        assert theme.value == ""
-        await pilot.press("space", *"mer")  # space enters editing; the rest is typed
+        await pilot.press("space", *"mer")  # space enters editing (and is not typed); the rest is typed
         assert theme.editing and theme.value == "mer"
         await pilot.press("space", *"bleue")  # a space is a space while editing
         assert theme.value == "mer bleue"
         await pilot.press("up", "down")  # up and down do nothing while editing
         assert app.focused is theme and theme.editing
         await pilot.press("left", "backspace")  # cursor keys work while editing
-        assert theme.value == "mer blue"[:-0] or theme.value.startswith("mer")
+        assert theme.value == "mer bleu"[:3] + "bleue"[:0] + theme.value[3:]
         await pilot.press("escape")  # cancel: back to the value before editing
         assert not theme.editing and theme.value == "" and app.focused is theme
         await pilot.press("enter", *"phare", "enter")  # Enter validates and keeps the value
@@ -453,13 +451,33 @@ async def test_field_enters_editing_with_enter_or_space_and_esc_cancels(backend)
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
 
 
+async def test_typing_on_a_cell_replaces_its_content_and_esc_restores_it(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("down", "down", "down", *"phare", "enter")
+        theme = app.screen.query_one("#theme", Input)
+        assert theme.value == "phare" and not theme.editing
+        await pilot.press(*"mer")  # typing again replaces what was there
+        assert theme.editing and theme.value == "mer"
+        await pilot.press("escape")
+        assert theme.value == "phare" and not theme.editing
+        # digits too, in a numeric cell
+        await pilot.press("down", "down", *"12", "x", "enter")  # min-words is an integer field: "x" is refused
+        assert app.screen.query_one("#min-words", Input).value == "12"
+
+
 async def test_arrows_move_focus_when_not_editing_a_field(backend):
     backend.preregister()
     await register_in_server(backend)
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("n")
+        await pilot.press("ctrl+n")
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         await pilot.press("down", "down", "down", "right")
         assert focused_id(app) == "primer"  # left and right move on, they do not scroll a cursor
@@ -471,21 +489,44 @@ async def test_select_opens_with_enter_or_space_and_keeps_arrows_for_navigation(
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("n")
+        await pilot.press("ctrl+n")
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         players = app.screen.query_one("#players", Select)
         await pilot.press("down")
         assert app.focused is players and players.value == 4  # the arrow moved the focus, no menu
         await pilot.press("enter")  # opens the menu
         await pilot.pause()
-        await pilot.press("down", "down", "enter")  # 4 -> 5 -> 6, validate
+        await pilot.press("down", "down", "enter")  # 4 -> 5 -> 6, validate with Enter
         await pilot.pause()
         assert players.value == 6 and app.focused is players
+        await pilot.press("space")  # opens with Space
+        await pilot.pause()
+        await pilot.press("down", "space")  # and Space validates the highlighted option too
+        await pilot.pause()
+        assert players.value == 7 and app.focused is players
         await pilot.press("space")
         await pilot.pause()
         await pilot.press("up", "escape")  # Esc closes without changing anything
         await pilot.pause()
-        assert players.value == 6 and app.focused is players and isinstance(app.screen, CreateScreen)
+        assert players.value == 7 and app.focused is players and isinstance(app.screen, CreateScreen)
+
+
+async def test_typing_on_a_choice_jumps_to_the_matching_option(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("down")
+        players = app.screen.query_one("#players", Select)
+        await pilot.press("8")  # a digit picks the option "8"
+        assert players.value == 8 and app.focused is players
+        await pilot.press("up")
+        visibility = app.screen.query_one("#visibility", Select)
+        await pilot.press("p", "r")  # letters pick by first letter ("Privée"... then still "Privée")
+        assert visibility.value == "private"
 
 
 async def test_lists_hand_the_focus_over_at_their_edges(backend):
@@ -515,20 +556,20 @@ async def test_lists_hand_the_focus_over_at_their_edges(backend):
         assert app.focused is public
 
 
-async def test_letter_shortcuts_work_from_a_field_that_is_not_being_edited(backend):
+async def test_ctrl_shortcuts_work_whatever_the_field_state_and_letters_are_typed(backend):
     backend.preregister()
     await register_in_server(backend)
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
         app.screen.query_one("#code", Input).focus()
-        await pilot.press("n")  # not editing: n is the "new game" shortcut
+        await pilot.press("n")  # a plain letter is text, not a shortcut
+        assert isinstance(app.screen, LobbyScreen)
+        assert app.screen.query_one("#code", Input).value == "n"
+        await pilot.press("ctrl+n")  # even while the field is being edited
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         await pilot.press("escape")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
-        await pilot.press("c", "n")  # editing the code: n is a letter
-        assert isinstance(app.screen, LobbyScreen)
-        assert app.screen.query_one("#code", Input).value == "n"
 
 
 async def test_footer_shows_the_keys_of_the_current_mode(backend):
@@ -537,7 +578,7 @@ async def test_footer_shows_the_keys_of_the_current_mode(backend):
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("c")
+        await pilot.press("ctrl+k")
         shown = {k.binding.action for k in app.screen.active_bindings.values() if k.binding.show}
         assert "commit_edit" in shown and "cancel_edit" in shown and "begin_edit" not in shown
         await pilot.press("escape")

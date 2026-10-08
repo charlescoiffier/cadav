@@ -10,7 +10,7 @@ from textual.widgets._select import SelectOverlay
 
 from cadav.client.config import Config, default_config_path, new_secret
 from cadav.client.connection import RETRY_DELAYS, Connection
-from cadav.client.theme import APP_CSS, CADAV_THEME
+from cadav.client.theme import APP_CSS, DEFAULT_PALETTE, PALETTES, build_theme, use_palette
 from cadav.client.screens import CreateScreen, LobbyScreen, LoginScreen, WaitingScreen
 from cadav.protocol import (
     Auth,
@@ -64,13 +64,16 @@ class CadavApp(App):
         self,
         config_path: Path | None = None,
         url: str | None = None,
+        theme: str | None = None,
         retry_delays: tuple[float, ...] = RETRY_DELAYS,
     ) -> None:
         super().__init__()
-        self.register_theme(CADAV_THEME)
-        self.theme = CADAV_THEME.name
         self.config_path = config_path or default_config_path()
         self.config = Config.load(self.config_path)
+        palette = use_palette(theme or self.config.theme or DEFAULT_PALETTE)
+        for p in PALETTES.values():
+            self.register_theme(build_theme(p))
+        self.theme = palette.name
         if url:
             self.config.url = url
         self.retry_delays = retry_delays
@@ -110,9 +113,9 @@ class CadavApp(App):
         """Called by the login screen: reuse the stored secret for the same pseudo, else register."""
         same = self.config.registered and pseudo.casefold() == self.config.pseudo.casefold()
         if same:
-            creds = Config(self.config.pseudo, self.config.secret, url)
+            creds = Config(self.config.pseudo, self.config.secret, url, self.config.theme)
         else:
-            creds = Config(pseudo, new_secret(), url)
+            creds = Config(pseudo, new_secret(), url, self.config.theme)
         self.connect(creds, registering=not same)
 
     def _hello(self):
@@ -158,7 +161,7 @@ class CadavApp(App):
     async def _on_auth_ok(self, msg: AuthOk) -> None:
         self.pseudo = msg.pseudo
         if self._registering:
-            self.config = Config(msg.pseudo, self._candidate.secret, self._candidate.url)
+            self.config = Config(msg.pseudo, self._candidate.secret, self._candidate.url, self.config.theme)
             self.config.save(self.config_path)
             self._registering = False
         if isinstance(self.screen, LoginScreen):

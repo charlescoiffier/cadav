@@ -7,9 +7,12 @@ arrows and the letters of the screen shortcuts are never swallowed by a field.
 
 from __future__ import annotations
 
+import time
+
 from textual import events
 from textual.binding import Binding
 from textual.widgets import Input, OptionList, Select
+from textual.widgets._select import SelectCurrent, SelectOverlay
 
 _INPUT_ACTIONS = {b.action.split("(")[0] for b in Input.BINDINGS if isinstance(b, Binding)}
 
@@ -75,9 +78,6 @@ class NavInput(Input):
             return self.editing  # cursor keys, delete, paste... only while editing
         return super().check_action(action, parameters)
 
-    def check_consume_key(self, key: str, character: str | None) -> bool:
-        # Outside editing, printable keys are not ours: screen shortcuts (n, c, l...) stay usable.
-        return self.editing and super().check_consume_key(key, character)
 
     # --- events ------------------------------------------------------------
 
@@ -86,7 +86,14 @@ class NavInput(Input):
     # still bubbles up to the app, which is where screen shortcuts and arrow bindings are checked.
 
     def _on_key(self, event: events.Key) -> None:
-        if not self.editing:
+        if self.editing:
+            return
+        if event.is_printable and event.key != "space":
+            # Spreadsheet-style: typing on a cell replaces its content (Esc brings the old one back).
+            self.begin_edit()
+            self.value = ""
+            self.cursor_position = 0
+        else:
             event.prevent_default()
 
     def _on_paste(self, event: events.Paste) -> None:
@@ -102,10 +109,49 @@ class NavInput(Input):
             self._end_edit()  # leaving the field keeps what was typed
 
 
+class NavSelectOverlay(SelectOverlay):
+    """The menu of a NavSelect: Space validates the highlighted option, like Enter."""
+
+    BINDINGS = [Binding("space", "select", "Valider", show=False)]
+
+    def _on_key(self, event: events.Key) -> None:
+        if event.key == "space":
+            event.prevent_default()  # not a search character: the binding above handles it
+
+    def check_consume_key(self, key: str, character: str | None = None) -> bool:
+        return key != "space" and super().check_consume_key(key, character)
+
+
 class NavSelect(Select, inherit_bindings=False):
-    """A choice field: Enter or Space opens the menu; up and down keep moving between fields."""
+    """A choice field: Enter or Space opens the menu; up and down keep moving between fields.
+
+    Typing a letter or a digit jumps to the first option that starts with it.
+    """
 
     BINDINGS = [Binding("enter,space", "show_overlay", "Choisir")]
+
+    def compose(self):
+        yield SelectCurrent(self.prompt)
+        yield NavSelectOverlay(type_to_search=self._type_to_search).data_bind(compact=Select.compact)
+
+    _query = ""
+    _query_time = 0.0
+
+    def _on_key(self, event: events.Key) -> None:
+        if not event.is_printable or event.key == "space":
+            return
+        now = time.monotonic()
+        if now - self._query_time > 1.0:
+            self._query = ""  # a pause starts a new search
+        self._query_time = now
+        self._query += (event.character or "").casefold()
+        for label, value in self._options:
+            if value is self.NULL:
+                continue
+            if str(label).casefold().startswith(self._query) or str(value).casefold() == self._query:
+                self.value = value
+                break
+        event.stop()
 
 
 class NavOptionList(OptionList):

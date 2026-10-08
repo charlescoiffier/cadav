@@ -19,15 +19,7 @@ from cadav.client.logic import (
     words_text,
 )
 from cadav.client.widgets import NavInput, NavOptionList, NavSelect
-from cadav.client.theme import (
-    ERROR,
-    MUTED,
-    PRIMARY,
-    SECONDARY,
-    SUCCESS,
-    WARNING,
-    chip,
-)
+from cadav.client.theme import chip, colors
 from cadav.protocol import (
     MIN_PLAYERS,
     CreateGame,
@@ -40,13 +32,15 @@ from cadav.protocol import (
     Visibility,
 )
 
-STATE_TEXT = {
-    "connecting": ("○", WARNING, "Connexion…"),
-    "online": ("●", SUCCESS, "Connecté"),
-    "offline": ("○", ERROR, "Hors ligne, nouvelle tentative…"),
-    "replaced": ("○", ERROR, "Connecté depuis un autre terminal"),
-    "outdated": ("○", ERROR, "Client trop ancien"),
-}
+def state_text(state: str) -> tuple[str, str, str]:
+    """Dot, colour and label of a connection state."""
+    return {
+        "connecting": ("○", colors.warning, "Connexion…"),
+        "online": ("●", colors.success, "Connecté"),
+        "offline": ("○", colors.error, "Hors ligne, nouvelle tentative…"),
+        "replaced": ("○", colors.error, "Connecté depuis un autre terminal"),
+        "outdated": ("○", colors.error, "Client trop ancien"),
+    }.get(state, ("○", colors.muted, state))
 
 
 class TopBar(Horizontal):
@@ -66,9 +60,9 @@ class TopBar(Horizontal):
     def refresh_bar(self) -> None:
         app = self.app
         self.query_one("#brand", Static).update(
-            Text.assemble(("▌cadav", "bold"), (f"  ›  {self.place}", MUTED))
+            Text.assemble(("▌cadav", "bold"), (f"  ›  {self.place}", colors.muted))
         )
-        dot, color, label = STATE_TEXT.get(app.status, ("○", MUTED, app.status))
+        dot, color, label = state_text(app.status)
         server = app.config.url.split("://", 1)[-1]
         who = f"{app.pseudo}@{server}  " if app.pseudo else ""
         self.query_one("#status", Static).update(Text.assemble(who, (f"{dot} {label}", color)))
@@ -82,7 +76,7 @@ def _set_options(widget: OptionList, items: list[tuple[str | None, Text]], empty
     """Rebuild an option list only if its content changed (keeps the highlight otherwise)."""
     options = [Option(label, id=ident) for ident, label in items]
     if not options:
-        options = [Option(Text(empty, style=MUTED), disabled=True)]
+        options = [Option(Text(empty, style=colors.muted), disabled=True)]
     current = [(o.id, str(o.prompt)) for o in widget.options]
     if current == [(o.id, str(o.prompt)) for o in options]:
         return
@@ -98,15 +92,15 @@ def _set_options(widget: OptionList, items: list[tuple[str | None, Text]], empty
 def my_game_prompt(view: GameView) -> Text:
     theme = view.settings.theme or "Sans thème"
     if view.status == GameStatus.WAITING:
-        badge = chip("ATTENTE", PRIMARY)
+        badge = chip("ATTENTE", colors.primary)
         info = f"{len(view.players)}/{view.settings.desired_players} joueurs"
     elif view.status == GameStatus.RUNNING:
-        badge = chip("À TOI", WARNING) if view.my_turn else chip("EN COURS", SECONDARY)
+        badge = chip("À TOI", colors.warning) if view.my_turn else chip("EN COURS", colors.secondary)
         info = "c'est ton tour" if view.my_turn else f"tour de {view.current_player}"
     else:
-        badge = chip("TERMINÉE", SUCCESS)
+        badge = chip("TERMINÉE", colors.success)
         info = "lis l'histoire"
-    return Text.assemble(badge, " ", (theme, "bold"), "\n", (f"{info}", MUTED))
+    return Text.assemble(badge, " ", (theme, "bold"), "\n", info)
 
 
 def public_game_prompt(entry: LobbyEntry) -> Text:
@@ -115,8 +109,7 @@ def public_game_prompt(entry: LobbyEntry) -> Text:
         "\n",
         (
             f"{entry.players}/{entry.desired_players} joueurs · tour {format_duration(entry.turn_seconds)}"
-            f" · hôte {entry.host}",
-            MUTED,
+            f" · hôte {entry.host}"
         ),
     )
 
@@ -172,8 +165,8 @@ class LoginScreen(Screen):
 class LobbyScreen(Screen):
     ready = False
     BINDINGS = [
-        Binding("n", "create", "Nouvelle partie"),
-        Binding("c", "focus_code", "Code"),
+        Binding("ctrl+n", "create", "Nouvelle partie"),
+        Binding("ctrl+k", "focus_code", "Code"),
     ]
     CSS = """
     #lobby-body { height: auto; padding: 1 1 0 1; }
@@ -216,7 +209,7 @@ class LobbyScreen(Screen):
         _set_options(
             self.query_one("#my-games", OptionList),
             [(v.game_id, my_game_prompt(v)) for v in app.games.values()],
-            "Aucune partie : appuie sur n pour en créer une.",
+            "Aucune partie : Ctrl+N pour en créer une.",
         )
         _set_options(
             self.query_one("#public-games", OptionList),
@@ -374,8 +367,8 @@ class CreateScreen(Screen):
 class WaitingScreen(Screen):
     ready = False
     BINDINGS = [
-        Binding("l", "start", "Lancer"),
-        Binding("x", "leave", "Quitter la partie"),
+        Binding("ctrl+l", "start", "Lancer"),
+        Binding("ctrl+x", "leave", "Quitter la partie"),
         Binding("escape", "back", "Retour"),
     ]
     CSS = """
@@ -430,7 +423,7 @@ class WaitingScreen(Screen):
         is_host = view.host == self.app.pseudo
         enough = len(view.players) >= MIN_PLAYERS
         self.query_one("#code-line", Static).update(
-            Text.assemble(chip(f"  {view.code}  ", PRIMARY), "\n", ("à partager pour inviter", MUTED))
+            Text.assemble(chip(f"  {view.code}  ", colors.primary), "\n", ("à partager pour inviter", colors.muted))
             if view.code
             else Text("")
         )
@@ -442,22 +435,22 @@ class WaitingScreen(Screen):
         for i, p in enumerate(view.players):
             if i:
                 names.append("\n")
-            names.append("♛ " if p == view.host else "  ", style=WARNING)
+            names.append("♛ " if p == view.host else "  ", style=colors.warning)
             names.append(p, style="bold" if p == self.app.pseudo else "")
             if p == self.app.pseudo:
-                names.append(" (toi)", style=MUTED)
+                names.append(" (toi)", style=colors.muted)
         self.query_one("#players", Static).update(names)
         lines = Text()
         for i, line in enumerate(describe_settings(view.settings)):
             key, _, value = line.partition(" : ")
             if i:
                 lines.append("\n")
-            lines.append(f"{key:<18}", style=MUTED)
+            lines.append(f"{key:<18}", style=colors.muted)
             lines.append(value)
         self.query_one("#settings", Static).update(lines)
         missing = view.settings.desired_players - len(view.players)
         if is_host and enough:
-            hint = "Tu peux lancer la partie maintenant (touche l), ou attendre les autres joueurs."
+            hint = "Tu peux lancer la partie maintenant (Ctrl+L), ou attendre les autres joueurs."
         elif is_host:
             hint = f"Il faut au moins {MIN_PLAYERS} joueurs pour lancer la partie."
         else:

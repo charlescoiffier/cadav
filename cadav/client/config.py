@@ -29,6 +29,7 @@ class Config:
     pseudo: str = ""
     secret: str = ""
     url: str = DEFAULT_URL
+    theme: str = ""  # name of a palette ("galaxy", "solarized-dark"); empty = default
 
     @classmethod
     def load(cls, path: Path) -> Config:
@@ -38,7 +39,7 @@ class Config:
             return cls()
         if not isinstance(data, dict):
             return cls()
-        return cls(**{k: str(v) for k, v in data.items() if k in ("pseudo", "secret", "url")})
+        return cls(**{k: str(v) for k, v in data.items() if k in ("pseudo", "secret", "url", "theme")})
 
     def save(self, path: Path) -> None:
         atomic_write_json(path, asdict(self))  # temp files are created 0600: the secret stays private

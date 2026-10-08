@@ -55,7 +55,8 @@ Le détail des règles et des décisions est dans le [cahier des charges](cahier
 ## Aperçu
 
 Une interface de terminal pensée pour le clavier, dans l'esprit de [Posting](https://posting.sh/) (bâtie comme lui avec
-Textual), aux couleurs de [Solarized](https://ethanschoonover.com/solarized/) dark.
+Textual), avec le thème de base de Posting (« galaxy ») et un accent orange. Une palette
+[Solarized](https://ethanschoonover.com/solarized/) dark est aussi disponible : `cadav play --theme solarized-dark`.
 
 | Connexion | Le lobby |
 |---|---|
@@ -71,21 +72,23 @@ Tout se fait sans souris, avec deux modes :
 
 - **Navigation** : `↑` `↓` `←` `→` et `Tab` / `Maj+Tab` passent d'un élément au suivant ou au précédent. Dans une liste, les
   flèches parcourent les lignes, puis passent à l'élément voisin aux extrémités.
-- **Modification** : `Entrée` ou `Espace` entre dans un champ de saisie ou ouvre un choix. Dans un champ, `Entrée` valide
-  et `Échap` annule (la valeur d'avant revient). Dans un choix ouvert, `↑` `↓` parcourent les options, `Entrée` valide et
-  `Échap` referme sans rien changer.
+- **Modification** : `Entrée` ou `Espace` entre dans un champ de saisie ou ouvre un choix. Sur une cellule, taper du texte
+  ou un chiffre suffit aussi : la saisie remplace le contenu (`Échap` le rétablit). Dans un champ, `Entrée` valide et `Échap`
+  annule. Dans un choix ouvert, `↑` `↓` parcourent les options, `Entrée` ou `Espace` valident et `Échap` referme sans rien
+  changer ; sur un choix fermé, taper une lettre ou un chiffre saute à l'option correspondante.
 
-Tant qu'on ne modifie pas un champ, les lettres ne sont pas saisies : les raccourcis ci-dessous restent utilisables.
-Le pied de page rappelle les touches du moment.
+Les raccourcis généraux affichés en bas de la fenêtre utilisent tous `Ctrl`, pour ne jamais gêner la saisie. L'élément qui a
+le focus est dessiné en couleur pleine (orange), son panneau reçoit une bordure épaisse orange, et un champ en cours de
+modification passe en blanc.
 
 | Écran | Touches | Effet |
 |---|---|---|
-| Lobby | `n` | Créer une partie |
-| | `c` | Saisir un code de partie privée (`Entrée` pour rejoindre) |
+| Lobby | `Ctrl+N` | Créer une partie |
+| | `Ctrl+K` | Saisir un code de partie privée (`Entrée` pour rejoindre) |
 | | `Entrée` / `Espace` | Ouvrir une de mes parties, ou rejoindre une partie publique |
 | Création | `Ctrl+S` / `Échap` | Créer la partie / annuler |
-| Salle d'attente | `l` | Lancer la partie (hôte, au moins 3 joueurs) |
-| | `x` / `Échap` | Quitter la partie / revenir au lobby |
+| Salle d'attente | `Ctrl+L` | Lancer la partie (hôte, au moins 3 joueurs) |
+| | `Ctrl+X` / `Échap` | Quitter la partie / revenir au lobby |
 | Partout | `Ctrl+Q` | Quitter |
 
 ---
@@ -134,7 +137,7 @@ cadav/
   server.py        # WebSocket : comptes, lobby, parties, échéances
   cli.py           # cadav serve | cadav play
   client/
-    theme.py       # palette Solarized dark, thème Textual, feuille de style, pastilles
+    theme.py       # palettes (galaxy, solarized-dark), thème Textual, feuille de style, pastilles
     widgets.py     # champs, choix et listes pilotés au clavier (mode navigation / édition)
     app.py         # application Textual : connexion, état, navigation
     screens.py     # connexion, lobby, création, salle d'attente (et leurs raccourcis)
