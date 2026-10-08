@@ -1,4 +1,4 @@
-# Cadavre exquis en terminal — Cahier des charges v1 (révision 3)
+# Cadavre exquis en terminal — Cahier des charges v1 (révision 4)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -55,9 +55,9 @@ Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. U
 
 ## 6. Identité
 - Premier lancement : le client génère un secret aléatoire (32 octets), le stocke dans sa config locale et envoie `register {pseudo, secret}`.
-- Le serveur enregistre `pseudo -> {sel, hash}` dans `data/users.json` (pseudo unique, insensible à la casse) et compare en temps constant.
+- Le serveur enregistre `pseudo -> {sel, hash}` dans `data/users.json` (pseudo unique, insensible à la casse) et compare en temps constant. Le secret étant 32 octets aléatoires et non un mot de passe humain, le hash est un SHA-256 salé, sans étirement de clé. Pseudo : 2 à 24 caractères (lettres, chiffres, `_`, `-`).
 - Connexions suivantes : `auth {pseudo, secret}`. Une seule connexion WebSocket par pseudo : une nouvelle remplace l'ancienne.
-- Limitation des tentatives par IP ; TLS obligatoire dès que le serveur est public.
+- Limitation par IP : 20 inscriptions ou échecs de connexion par fenêtre de 10 minutes (erreur `too_many_attempts`) ; TLS obligatoire dès que le serveur est public.
 - Limite connue : config perdue = pseudo perdu ; changement d'appareil par copie du fichier de config.
 
 ## 7. Cycle d'une partie
@@ -72,7 +72,9 @@ Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. U
 ## 8. Protocole
 Chaque message : `{v, type, game_id?, ...}`. Tout message de partie porte un `game_id`, et le serveur vérifie l'appartenance du joueur. Le numéro de version `v` (actuellement 1) permet de refuser un client trop ancien (erreur `unsupported_version`). Les champs inconnus d'un message client sont refusés. `join_game` prend exactement un de `game_id` ou `code`.
 
-Les événements serveur (`game_joined`, `player_joined`, `player_left`, `game_started`, `turn_started`, `turn_skipped`, `game_finished`) portent la projection `view` (voir §9) propre au destinataire. Le message `error` porte `code` (stable, pour le client) et `message` (français, affichable tel quel). `lobby_update` porte des `LobbyEntry` (sans code, sans texte).
+Les événements serveur (`game_joined`, `player_joined`, `player_left`, `game_started`, `turn_started`, `turn_skipped`, `game_finished`) portent la projection `view` (voir §9) propre au destinataire. Le message `error` porte `code` (stable, pour le client) et `message` (français, affichable tel quel). `lobby_update` porte des `LobbyEntry` (sans code, sans texte) ; il est envoyé en réponse à `list_games`, puis poussé à chaque changement des parties publiques en attente aux clients qui ont fait `list_games`. Les parties privées n'y figurent jamais et ne se rejoignent que par code.
+
+Pas de message dédié à l'expiration d'une salle d'attente : le serveur envoie `error` avec `code: "game_expired"` et le `game_id`. Après `leave_game`, le serveur renvoie `my_games` au joueur qui part (accusé de réception). Remplacement de connexion : l'ancienne est fermée avec le code WebSocket 4000 ; version refusée : 4001.
 
 - Client vers serveur : `register`, `auth`, `list_games`, `create_game`, `join_game`, `leave_game`, `start_game`, `submit_text`.
 - Serveur vers client : `auth_ok`, `my_games`, `lobby_update`, `game_joined`, `player_joined`, `player_left`, `game_started`, `turn_started`, `turn_skipped`, `game_finished`, `error`.
@@ -90,7 +92,7 @@ Les événements serveur (`game_joined`, `player_joined`, `player_left`, `game_s
 ## 10. Persistance
 - `data/users.json` : comptes.
 - `data/games/<id>.json` : parties en cours, réécrites à chaque changement d'état.
-- `data/archive/<date>-<id>.json` : parties terminées.
+- `data/archive/<date>-<id>.json` : parties terminées. Une partie terminée reste en mémoire 7 jours (et est rechargée depuis l'archive au démarrage) : un joueur absent à la fin retrouve l'histoire dans `my_games` à sa reconnexion. Les archives restent sur disque.
 - Écriture atomique (fichier temporaire puis `os.replace`). Rechargement et replanification des échéances au démarrage.
 
 ## 11. Interface (Textual)
@@ -104,7 +106,7 @@ Les événements serveur (`game_joined`, `player_joined`, `player_left`, `game_s
 
 ## 12. Limites et sécurité
 - Taille maximale des messages WebSocket ; plafond technique de 2000 caractères par contribution.
-- Nombre maximal de parties simultanées sur le serveur, et de créations par pseudo par heure.
+- Nombre maximal de parties simultanées sur le serveur (1000 en attente ou en cours), et 10 créations par pseudo par heure. Messages WebSocket limités à 64 Ko.
 - Chaque partie tourne dans sa propre tâche avec gestion d'erreur isolée.
 - Nettoyage des parties expirées.
 
@@ -114,7 +116,7 @@ cadavre/
   protocol.py      # messages Pydantic partagés
   game.py          # logique pure (ordre, tours, amorce, view_for) ; heure et rng injectés
   server.py        # WebSocket, lobby, échéances
-  storage.py       # JSON atomique
+  storage.py       # JSON atomique (users, games, archive)
   client/          # app Textual (écrans)
   cli.py           # cadavre play | cadavre serve
 tests/
@@ -123,7 +125,7 @@ La logique de jeu reste pure (sans réseau ni disque), donc testable seule.
 
 ## 14. Jalons
 1. `protocol.py` + `game.py` + tests (ordre, tours sautés, extraction d'amorce, projection, échéances). **Fait (53 tests).**
-2. `storage.py` + `server.py`, testés avec un client WebSocket de script.
+2. `storage.py` + `server.py`, testés avec un client WebSocket de script. **Fait (84 tests au total).**
 3. Client Textual : lobby, création, salle d'attente.
 4. Écran de partie et reprise à la connexion.
 5. Écran final, export, packaging `pipx`.
@@ -140,3 +142,12 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Code de partie : 5 lettres parmi `ABCDEFGHJKLMNPQRSTUVWXYZ` (pas de chiffres, ni I ni O).
 - Dépendances : `pydantic` seul pour le jalon 1 ; `websockets` et `textual` arriveront avec les jalons 2 et 3.
 - Environnement de dev : `uv venv .venv && uv pip install -e '.[dev]'`, puis `.venv/bin/pytest`.
+
+## 17. Décisions d'implémentation (jalon 2)
+- `server.py` sépare le transport de la logique : la classe `Server` travaille sur des objets `Session` (fonctions `send` et `close`) ; seul `Server.listen()` utilise `websockets`. L'horloge, le générateur aléatoire et les limites (`Limits`) sont injectés.
+- Une `asyncio.Task` par échéance (tour en cours ou salle d'attente), recréée à chaque changement d'état de la partie, et réarmée au démarrage (`Server.start`) : une échéance déjà dépassée se déclenche aussitôt. `check_deadlines()` applique à la demande toutes les échéances passées.
+- Chaque changement est écrit sur disque avant d'être oublié ; une erreur d'écriture est journalisée sans faire tomber la partie. Un fichier de partie illisible est ignoré au démarrage.
+- Les parties terminées passent de `data/games/` à `data/archive/` ; une salle vidée ou expirée est supprimée.
+- Un `leave_game` ou `submit_text` d'un non-membre renvoie `not_in_game`, sans révéler si la partie existe.
+- Lancement du serveur pour essai : `.venv/bin/python -m cadavre.server --port 8765 --data-dir data` (options `--cert` et `--key` pour TLS). La commande `cadavre serve` arrive avec `cli.py` (jalon 5).
+- Dépendance ajoutée : `websockets` (prévue au §3).

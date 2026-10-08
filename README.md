@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml/badge.svg)](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-![Jalon](https://img.shields.io/badge/jalon-1%20sur%206-orange)
+![Jalon](https://img.shields.io/badge/jalon-2%20sur%206-orange)
 
 Un jeu de cadavre exquis textuel et multijoueur, à jouer dans le terminal. Un serveur central gère le lobby et toutes
 les parties ; chaque joueur écrit à son tour un morceau d'histoire sans voir ce qu'ont écrit les autres.
 
-> **État du projet : en construction.** La logique de jeu et le protocole sont écrits et testés (jalon 1). Le serveur,
-> l'interface et l'installation arrivent aux jalons suivants : il n'y a pas encore de jeu à lancer.
+> **État du projet : en construction.** Le protocole, la logique de jeu et le serveur sont écrits et testés (jalons 1 et 2).
+> L'interface et l'installation arrivent aux jalons suivants : il n'y a pas encore de client pour jouer.
 
 ---
 
@@ -43,7 +43,7 @@ rejoint une partie, puis on écrit quand vient son tour.
 | Jalon | Contenu | État |
 |---|---|---|
 | 1 | Protocole et logique de jeu, avec leurs tests | Fait |
-| 2 | Stockage JSON et serveur WebSocket | À faire |
+| 2 | Stockage JSON et serveur WebSocket | Fait |
 | 3 | Client : lobby, création, salle d'attente | À faire |
 | 4 | Écran de partie et reprise à la connexion | À faire |
 | 5 | Écran final, export (`.txt`, `.md`, presse-papiers), installation avec `pipx` | À faire |
@@ -70,7 +70,7 @@ Sans uv : `python -m venv .venv && .venv/bin/pip install -e '.[dev]'`.
 ## Technologies
 
 - Python 3.11+
-- Serveur : `asyncio` et `websockets` (jalon 2)
+- Serveur : `asyncio` et [websockets](https://websockets.readthedocs.io/)
 - Client : [Textual](https://textual.textualize.io/) (jalon 3)
 - Messages : [Pydantic](https://docs.pydantic.dev/), dans un module partagé client/serveur
 - Tests : `pytest` et `pytest-asyncio`
@@ -82,14 +82,23 @@ Sans uv : `python -m venv .venv && .venv/bin/pip install -e '.[dev]'`.
 cadavre/
   protocol.py      # messages Pydantic partagés, numéro de version
   game.py          # logique pure : ordre, tours, amorce, échéances, view_for
+  storage.py       # JSON atomique : comptes, parties en cours, archives
+  server.py        # WebSocket : comptes, lobby, parties, échéances
 tests/
   test_protocol.py
   test_game.py
+  test_storage.py
+  test_server.py   # vrai serveur WebSocket et clients scriptés
 cahier-des-charges.md
 ```
 
-À venir : `storage.py` (JSON atomique), `server.py`, `client/` (écrans Textual) et `cli.py`
-(`cadavre play` et `cadavre serve`).
+À venir : `client/` (écrans Textual) et `cli.py` (`cadavre play` et `cadavre serve`).
+
+Pour essayer le serveur seul (il n'y a pas encore de client) :
+
+```bash
+.venv/bin/python -m cadavre.server --port 8765 --data-dir data
+```
 
 ## Principes
 

@@ -3,7 +3,7 @@ name = "cadavre"
 version = "0.1.0"
 description = "Cadavre exquis multijoueur en terminal"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2.6"]
+dependencies = ["pydantic>=2.6", "websockets>=13"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.23"]
