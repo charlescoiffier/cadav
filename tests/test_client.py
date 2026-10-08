@@ -1015,14 +1015,18 @@ def region(app, selector):
     return app.screen.query_one(selector).region
 
 
-async def test_lobby_layout_fills_the_height_with_the_join_panel_at_the_bottom(backend):
+async def test_lobby_layout_fills_the_height_with_two_panels_side_by_side_at_the_bottom(backend):
     app = await ready(backend)
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        mine, public, join = region(app, "#mine-pane"), region(app, "#public-pane"), region(app, "#join-pane")
+        mine, public = region(app, "#mine-pane"), region(app, "#public-pane")
+        join, create = region(app, "#join-pane"), region(app, "#create-pane")
         assert mine.height == public.height and mine.height > 20  # both stretch over the remaining height
-        assert join.y > mine.bottom - 1 and join.bottom == SIZE[1] - 1  # right above the footer line
-        assert join.x == mine.x and join.right == public.right  # as wide as the two panels
+        assert join.y == create.y and join.bottom == create.bottom == SIZE[1] - 1  # right above the footer line
+        assert join.x == mine.x and join.right == mine.right  # "Rejoindre" under "Mes parties"
+        assert create.x == public.x and create.right == public.right  # "Créer" at its right
+        assert app.screen.query_one("#create-pane").border_title == "Créer une partie"
+        assert app.screen.query_one("#join-pane").border_title == "Rejoindre avec un code"
 
 
 async def test_create_layout_same_height_and_actions_bottom_right(backend):
@@ -1082,3 +1086,65 @@ async def test_final_layout_panels_full_height_and_aligned_with_the_bottom_panel
         assert info.height == story.height and info.height > 20
         assert story.right == save.right and info.x == save.x  # same left and right edges as the bottom panel
         assert region(app, "#back").right >= save.right - 2  # buttons on the right
+
+
+# --- choices point the focus at what they reveal; focus bars --------------------
+
+
+async def test_choosing_last_words_focuses_the_number_field(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("down", "down", "down", "down")
+        assert focused_id(app) == "primer"
+        assert not app.screen.query_one("#primer-row").display
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("down", "enter")  # "N derniers mots"
+        await pilot.pause()
+        assert app.screen.query_one("#primer-row").display and focused_id(app) == "primer-words"
+        await pilot.press(*"5", "enter")  # then on to the next field
+        assert app.screen.query_one("#primer-words", Input).value == "5" and focused_id(app) == "min-words"
+        # another choice goes to the following field as usual
+        await pilot.press("up", "up", "enter")
+        await pilot.pause()
+        await pilot.press("down", "enter")  # "Aucune": the number field disappears
+        await pilot.pause()
+        assert not app.screen.query_one("#primer-row").display and focused_id(app) == "min-words"
+
+
+async def test_choosing_a_custom_duration_focuses_its_field(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("down", "down", "enter")  # the duration choice
+        await pilot.pause()
+        await pilot.press("down", "enter")  # "Personnalisée…"
+        await pilot.pause()
+        assert focused_id(app) == "custom-deadline"
+
+
+async def test_every_field_has_the_same_focus_bar_as_the_menus(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        focus_color = app.get_css_variables()["cadav-focus"].lower()
+        await pilot.press("down", "down", "down")
+        assert not app.screen.query_one("#min-words", Input).has_class("-invalid")  # empty numbers are valid
+        bars = {}
+        for ident in ("theme", "min-words", "max-words", "primer-words"):
+            field = app.screen.query_one(f"#{ident}", Input)
+            if not field.display:
+                continue
+            field.focus()
+            await pilot.pause()
+            kind, color = field.styles.border_left
+            bars[ident] = (kind, color.hex.lower())
+        assert set(bars) == {"theme", "min-words", "max-words"}
+        assert set(bars.values()) == {("outer", focus_color)}, bars

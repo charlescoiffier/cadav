@@ -191,8 +191,11 @@ class LobbyScreen(Screen):
     #mine-pane, #public-pane { width: 1fr; height: 100%; }
     #mine-pane { margin-right: 1; }
     #my-games, #public-games { height: 1fr; max-height: 100%; }
-    #join-pane Input { width: 24; margin-right: 1; }
-    #join-pane .grow { width: 1fr; }
+    #bottom-row { width: 100%; height: auto; padding: 0 2; }
+    #join-pane, #create-pane { width: 1fr; height: 3; }
+    #join-pane { margin-right: 1; }
+    #join-pane Input { width: 1fr; margin-right: 1; }
+    #create-hint { width: 1fr; height: 1; }
     """
 
     def compose(self) -> ComposeResult:
@@ -205,12 +208,15 @@ class LobbyScreen(Screen):
             with Vertical(id="public-pane", classes="pane") as public:
                 public.border_title = "Parties publiques"
                 yield NavOptionList(id="public-games")
-        with Horizontal(id="join-pane", classes="pane bottom") as join:
-            join.border_title = "Rejoindre avec un code"
-            yield NavInput(placeholder="CODE", id="code", max_length=5)
-            yield Button("Rejoindre", id="join-code")
-            yield Static("", classes="grow")
-            yield Button("Créer une partie", id="create", variant="primary")
+        with Horizontal(id="bottom-row", classes="bottom-row"):
+            with Horizontal(id="join-pane", classes="pane") as join:
+                join.border_title = "Rejoindre avec un code"
+                yield NavInput(placeholder="CODE", id="code", max_length=5)
+                yield Button("Rejoindre", id="join-code")
+            with Horizontal(id="create-pane", classes="pane") as create:
+                create.border_title = "Créer une partie"
+                yield Static("Une nouvelle histoire (Ctrl+N)", id="create-hint", classes="muted")
+                yield Button("Créer", id="create", variant="primary")
         yield Footer(show_command_palette=False)
 
     def on_mount(self) -> None:
@@ -325,9 +331,9 @@ class CreateScreen(Screen):
                         value="last_sentence", allow_blank=False, id="primer",
                     ),
                 )
-                yield _field("", NavInput(placeholder="N (défaut 12)", id="primer-words", type="integer"), row_id="primer-row")
-                yield _field("Mots minimum", NavInput(placeholder="facultatif", id="min-words", type="integer"))
-                yield _field("Mots maximum", NavInput(placeholder="facultatif", id="max-words", type="integer"))
+                yield _field("", NavInput(placeholder="N (défaut 12)", id="primer-words", type="integer", valid_empty=True), row_id="primer-row")
+                yield _field("Mots minimum", NavInput(placeholder="facultatif", id="min-words", type="integer", valid_empty=True))
+                yield _field("Mots maximum", NavInput(placeholder="facultatif", id="max-words", type="integer", valid_empty=True))
         with Horizontal(classes="pane bottom actions"):
             yield Static("", id="form-error", classes="error")
             yield Button("Créer", id="submit", variant="primary")
@@ -337,6 +343,15 @@ class CreateScreen(Screen):
     def on_mount(self) -> None:
         self._sync_visibility()
         self.query_one("#visibility", Select).focus()
+
+    def focus_after_choice(self, select):
+        """Where the focus goes once ``select`` has been chosen in (None: the next element)."""
+        self._sync_visibility()  # the fields it reveals exist by now
+        if select.id == "primer" and select.value == "last_words":
+            return self.query_one("#primer-words")
+        if select.id == "deadline" and select.value == "custom":
+            return self.query_one("#custom-deadline")
+        return None
 
     def _sync_visibility(self) -> None:
         self.query_one("#custom-row").display = self.query_one("#deadline", Select).value == "custom"

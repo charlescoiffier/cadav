@@ -177,11 +177,11 @@ OptionList > .option-list--option-disabled { color: $cadav-muted; }
 .frow { height: 1; margin-bottom: 1; }
 .flabel { width: 18; color: $cadav-muted; }
 Input { border: none; height: 1; padding: 0 1; background: $surface; width: 1fr; color: $cadav-strong; }
-Input:focus { border: none; border-left: outer $accent; padding-left: 0; background: $surface; }
-Input.-invalid, Input.-invalid:focus { border: none; }
+Input:focus { border: none; border-left: outer $cadav-focus; padding-left: 0; background: $surface; }
+Input.-invalid, Input.-invalid:focus { border: none; border-left: outer $error; padding-left: 0; }
 Input > .input--placeholder { color: $cadav-muted; }
 NavInput > .input--cursor { background: transparent; color: $cadav-strong; text-style: none; }
-NavInput.-editing, NavInput.-editing:focus { background: $cadav-editing; border-left: outer $accent; padding-left: 0; }
+NavInput.-editing, NavInput.-editing:focus { background: $cadav-editing; border-left: outer $cadav-focus; padding-left: 0; }
 NavInput.-editing > .input--cursor { background: $input-cursor-background; color: $cadav-on-color; text-style: bold; }
 Select { height: 1; width: 1fr; }
 Select > SelectCurrent { border: none; height: 1; padding: 0 1; background: $surface; color: $cadav-strong; }
@@ -211,7 +211,7 @@ Button:disabled { opacity: 0.4; }
 
 /* multi-line text */
 TextArea { border: none; background: $surface; color: $cadav-strong; padding: 0 1; }
-TextArea:focus { border: none; border-left: outer $accent; padding-left: 0; background: $surface; }
+TextArea:focus { border: none; border-left: outer $cadav-focus; padding-left: 0; background: $surface; }
 TextArea > .text-area--cursor-line { background: $surface; }
 TextArea > .text-area--placeholder { color: $cadav-muted; }
 

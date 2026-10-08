@@ -136,7 +136,16 @@ class NavSelect(Select, inherit_bindings=False):
     def _chosen(self, event: SelectOverlay.UpdateSelection) -> None:
         # Textual's own handler (run just after) applies the choice and refocuses the select:
         # once it is done, move on to the next element.
-        self.call_after_refresh(self.screen.focus_next)
+        self.call_after_refresh(self._move_on)
+
+    def _move_on(self) -> None:
+        screen = self.screen
+        chooser = getattr(screen, "focus_after_choice", None)
+        target = chooser(self) if chooser else None
+        if target is not None:
+            target.focus()
+        else:
+            screen.focus_next()
 
     def compose(self):
         yield SelectCurrent(self.prompt)
