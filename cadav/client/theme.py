@@ -25,7 +25,7 @@ class Palette:
     surface: str  # bars, fields
     panel: str
     border_dim: str  # border of a panel that does not have the focus
-    foreground: str  # body text
+    foreground: str | None  # body text; None = let Textual pick a readable text colour
     strong: str  # emphasised text
     muted: str  # labels, placeholders, hints
     primary: str
@@ -39,25 +39,27 @@ class Palette:
     editing: str  # background of a field being edited
 
 
-# Posting's default theme, "galaxy" (colours from its themes.py), with an orange accent and a few derived shades.
+# Posting's default theme, "galaxy": the colours below are those of its themes.py (primary, secondary,
+# warning, error, success, accent, background, surface, panel), without any change. The remaining
+# fields are shades derived from them (no text colour: Textual computes it, as it does for Posting).
 GALAXY = Palette(
     name="galaxy",
     dark=True,
     background="#0F0F1F",
     surface="#1E1E3F",
     panel="#2D2B55",
-    border_dim="#4b4780",
-    foreground="#e4e4f2",
+    border_dim="#572d79",  # primary at 40% over the background
+    foreground=None,
     strong="#ffffff",
-    muted="#a9a6d6",
+    muted="#9f9fa5",  # white at 60%
     primary="#C45AFF",
     secondary="#a684e8",
-    accent="#FF8C32",  # orange
+    accent="#FF69B4",
     success="#00FA9A",
     warning="#FFD700",
     error="#FF4500",
     highlight="#4b2c7a",
-    focus="#FF8C32",
+    focus="#FF69B4",  # the accent
     editing="#ffffff",
 )
 
@@ -111,6 +113,7 @@ def build_theme(p: Palette) -> Theme:
         error=p.error,
         dark=p.dark,
         variables={
+            "cadav-text": "auto 87%" if p.foreground is None else p.foreground,
             "cadav-strong": p.strong,
             "cadav-muted": p.muted,
             "cadav-highlight": p.highlight,
@@ -122,8 +125,9 @@ def build_theme(p: Palette) -> Theme:
             "border-blurred": p.border_dim,
             "footer-key-foreground": p.background,
             "footer-key-background": p.primary,
-            "footer-description-foreground": p.foreground,
-            "footer-background": p.surface,
+            "footer-description-foreground": "auto 87%" if p.foreground is None else p.foreground,
+            "footer-background": "transparent",
+            "input-cursor-background": p.primary,
             "input-selection-background": f"{p.primary} 50%",
             "block-cursor-background": p.focus,
             "block-cursor-foreground": p.background,
@@ -137,16 +141,16 @@ def chip(label: str, color: str, fg: str | None = None) -> Text:
 
 
 APP_CSS = """
-Screen { background: $background; color: $foreground; }
+Screen { background: $background; color: $cadav-text; }
 
 /* top bar and footer */
 TopBar { height: 1; dock: top; background: $surface; padding: 0 1; }
 TopBar #brand { width: 1fr; color: $secondary; text-style: bold; }
 TopBar #status { width: auto; color: $cadav-muted; }
-Footer { background: $surface; }
-FooterKey { background: $surface; }
+Footer { background: $footer-background; }
+FooterKey { background: $footer-background; }
 FooterKey .footer-key--key { background: $primary; color: $cadav-on-color; text-style: bold; }
-FooterKey .footer-key--description { color: $foreground; background: $surface; }
+FooterKey .footer-key--description { color: $cadav-text; background: $footer-background; }
 
 /* panels: rounded border with the title inside; heavy accent border when they hold the focus */
 .pane {
@@ -163,7 +167,7 @@ FooterKey .footer-key--description { color: $foreground; background: $surface; }
 /* lists: the row that has the focus is drawn in inverse video */
 OptionList { border: none; background: transparent; padding: 0; height: auto; min-height: 3; max-height: 12; }
 OptionList:focus { border: none; background: transparent; }
-OptionList > .option-list--option { padding: 0 1; color: $foreground; }
+OptionList > .option-list--option { padding: 0 1; color: $cadav-text; }
 OptionList > .option-list--option-highlighted { background: $cadav-highlight; color: $cadav-strong; text-style: none; }
 OptionList:focus > .option-list--option-highlighted { background: $cadav-focus; color: $cadav-on-color; text-style: none; }
 OptionList > .option-list--option-disabled { color: $cadav-muted; }
@@ -185,7 +189,7 @@ Select > SelectCurrent { border: none; height: 1; padding: 0 1; background: $sur
 Select:focus > SelectCurrent { border: none; background: $cadav-focus; color: $cadav-on-color; text-style: bold; }
 SelectCurrent .arrow { color: $cadav-muted; }
 Select:focus > SelectCurrent .arrow { color: $cadav-on-color; }
-SelectOverlay { border: round $accent; background: $surface; color: $foreground; }
+SelectOverlay { border: round $accent; background: $surface; color: $cadav-text; }
 
 /* compact buttons */
 Button { min-width: 0; height: 1; border: none; padding: 0 2; margin-right: 1; background: $surface; color: $cadav-strong; text-style: none; }

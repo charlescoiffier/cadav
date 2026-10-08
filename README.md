@@ -55,7 +55,7 @@ Le détail des règles et des décisions est dans le [cahier des charges](cahier
 ## Aperçu
 
 Une interface de terminal pensée pour le clavier, dans l'esprit de [Posting](https://posting.sh/) (bâtie comme lui avec
-Textual), avec le thème de base de Posting (« galaxy ») et un accent orange. Une palette
+Textual), avec exactement le thème de base de Posting (« galaxy »). Une palette
 [Solarized](https://ethanschoonover.com/solarized/) dark est aussi disponible : `cadav play --theme solarized-dark`.
 
 | Connexion | Le lobby |
@@ -82,7 +82,7 @@ Tout se fait sans souris, avec deux modes :
   changer ; sur un choix fermé, taper une lettre ou un chiffre saute à l'option correspondante.
 
 Les raccourcis généraux affichés en bas de la fenêtre utilisent tous `Ctrl`, pour ne jamais gêner la saisie. L'élément qui a
-le focus est dessiné en couleur pleine (orange), son panneau reçoit une bordure épaisse orange, et un champ en cours de
+le focus est dessiné en couleur pleine (le rose d'accentuation du thème), son panneau reçoit une bordure épaisse rose, et un champ en cours de
 modification passe en blanc.
 
 | Écran | Touches | Effet |

@@ -1,4 +1,4 @@
-# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 10)
+# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 11)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -97,7 +97,7 @@ Pas de message dédié à l'expiration d'une salle d'attente : le serveur envoie
 - Écriture atomique (fichier temporaire puis `os.replace`). Rechargement et replanification des échéances au démarrage.
 
 ## 11. Interface (Textual)
-Direction graphique : un vrai TUI, dans l'esprit de [Posting](https://posting.sh/) (réalisé avec Textual) : thème de base de Posting (« galaxy ») avec un accent orange, et palette Solarized dark en option (`--theme solarized-dark` ou clé `theme` de la configuration) ; un thème clair pourra venir plus tard : toutes les couleurs sont dans une `Palette`, panneaux à bordure arrondie dont le titre est dans la bordure, champs de formulaire d'une ligne, pastilles de couleur pour les états, barre du haut (nom de l'écran, `pseudo@serveur ● état`), pied de page avec les raccourcis, pilotage au clavier d'abord (la souris reste possible). Pas de palette de commandes.
+Direction graphique : un vrai TUI, dans l'esprit de [Posting](https://posting.sh/) (réalisé avec Textual) : thème de base de Posting (« galaxy »), repris tel quel, et palette Solarized dark en option (`--theme solarized-dark` ou clé `theme` de la configuration) ; un thème clair pourra venir plus tard : toutes les couleurs sont dans une `Palette`, panneaux à bordure arrondie dont le titre est dans la bordure, champs de formulaire d'une ligne, pastilles de couleur pour les états, barre du haut (nom de l'écran, `pseudo@serveur ● état`), pied de page avec les raccourcis, pilotage au clavier d'abord (la souris reste possible). Pas de palette de commandes.
 
 Modèle de navigation (accessibilité) : les flèches et `Tab` / `Maj+Tab` passent d'un élément à l'autre ; `Entrée` ou `Espace` entre dans la modification d'un champ ou d'un choix, et taper du texte ou un chiffre sur une cellule commence la saisie (elle remplace le contenu) ; `Échap` en sort en annulant, `Entrée` en sort en validant (`Espace` valide aussi un menu ouvert). Hors modification, un champ ne capte pas les flèches. Tous les raccourcis généraux du pied de page utilisent `Ctrl` (`Échap` reste la touche d'annulation).
 
@@ -176,7 +176,7 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Salle d'attente : code, joueurs (♛ = hôte), réglages, prochaine étape. `Ctrl+L` lance (hôte, 3 joueurs minimum), `Ctrl+O` quitte la partie, `Échap` revient au lobby.
 - Les captures du README se régénèrent avec `scripts/screenshots.py` (serveur jetable + pilote de test Textual + `rsvg-convert`).
 
-## 20. Navigation clavier, installation (révision 10)
+## 20. Navigation clavier, installation (révision 11)
 - `cadav/client/widgets.py` : `NavInput` (champ à deux modes), `NavSelect` (choix : seuls `Entrée` et `Espace` l'ouvrent, `↑` `↓` ne l'ouvrent plus) et `NavOptionList` (liste qui passe le focus à l'élément voisin à ses extrémités, `Espace` comme `Entrée`). Les touches de navigation globales (`↑` `←` précédent, `↓` `→` suivant, `Tab`) sont des liaisons de l'application ; un menu ouvert ou un champ en cours de modification les reçoit en premier.
 - Hors modification, `NavInput` ne consomme ni les flèches ni `Espace` (voir §21 pour la saisie directe). En modification, `↑` et `↓` sont sans effet, `←` `→` déplacent le curseur, un clic entre dans le champ, et perdre le focus valide la saisie.
 - `Entrée` dans un champ ne fait que valider le champ (sauf le champ « code » du lobby, qui rejoint la partie). Sur l'écran de connexion, on valide la connexion avec le bouton « Entrer ».
@@ -184,10 +184,10 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Le paquet Python s'appelle `cadav/` (renommé depuis `cadavre/`). La commande est installable globalement : `uv tool install --editable .` (ou `pipx install --editable .`) place `cadav` dans `~/.local/bin`.
 - Données du serveur par défaut : `$XDG_DATA_HOME/cadav` ou `~/.local/share/cadav` (et non plus `./data`), pour que `cadav serve` se comporte de la même façon quel que soit le dossier courant.
 
-## 21. Palette, focus, saisie directe (révision 10)
-- Palette par défaut : « galaxy », le thème de base de Posting (fond `#0F0F1F`, surfaces `#1E1E3F` et `#2D2B55`, primaire `#C45AFF`, secondaire `#a684e8`) avec l'accent **orange** `#FF8C32`. Option : `solarized-dark` (accent orange Solarized `#cb4b16`). Choix par `cadav play --theme …` ou par la clé `theme` de `config.json`.
+## 21. Palette, focus, saisie directe (révision 11)
+- Palette par défaut : « galaxy », le thème de base de Posting repris sans modification (fichier `themes.py` de Posting) : primaire `#C45AFF`, secondaire `#a684e8`, avertissement `#FFD700`, erreur `#FF4500`, succès `#00FA9A`, accent `#FF69B4`, fond `#0F0F1F`, surface `#1E1E3F`, panneau `#2D2B55`, pied de page transparent, curseur de saisie `#C45AFF`. Pas de couleur de texte imposée : Textual la calcule, comme pour Posting (`auto 87 %`). Les nuances propres à cadav (gris du texte secondaire, ligne sélectionnée `#4b2c7a`, bordure atténuée, blanc d'édition) sont dérivées de ces couleurs. Option : `solarized-dark` (accent orange Solarized `#cb4b16`). Choix par `cadav play --theme …` ou par la clé `theme` de `config.json`.
 - La feuille de style n'emploie que des variables de thème (`$accent`, `$cadav-focus`, `$cadav-editing`…) ; les styles Rich des écrans lisent la palette courante (`theme.colors`).
-- Focus : l'élément qui a le focus est en vidéo inverse (fond orange, texte de la couleur du fond, rapport de contraste d'environ 7:1 avec « galaxy ») ; son panneau a une bordure épaisse orange et un titre blanc ; la ligne sélectionnée d'une liste sans focus est en violet foncé ; un champ en cours de modification est blanc, curseur inversé. Le second texte des lignes de liste n'est jamais grisé, pour rester lisible en vidéo inverse.
+- Focus : l'élément qui a le focus est en vidéo inverse (fond rose d'accentuation, texte de la couleur du fond, rapport de contraste d'environ 7:1 avec « galaxy ») ; son panneau a une bordure épaisse rose et un titre blanc ; la ligne sélectionnée d'une liste sans focus est en violet foncé ; un champ en cours de modification est blanc, curseur inversé. Le second texte des lignes de liste n'est jamais grisé, pour rester lisible en vidéo inverse.
 - Raccourcis : Lobby `Ctrl+N` (nouvelle partie), `Ctrl+K` (code) ; Création `Ctrl+S` ; Salle d'attente `Ctrl+L` (lancer), `Ctrl+O` (quitter la partie) ; partout `Ctrl+Q`, `Échap` pour revenir. Les lettres sont donc toujours du texte.
 - Saisie directe : sur un `NavInput` qui n'est pas en modification, un caractère imprimable (sauf Espace) entre en modification, vide le champ et s'y inscrit ; `Échap` rétablit la valeur d'avant. Sur un `NavSelect` fermé, taper une lettre ou un chiffre (accumulés pendant 1 s) choisit la première option correspondante. Dans le menu ouvert, `Espace` valide comme `Entrée`.
 
