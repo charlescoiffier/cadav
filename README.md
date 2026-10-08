@@ -87,9 +87,9 @@ Tout se fait sans souris, avec deux modes :
 - **Navigation** : `↑` `↓` `←` `→` et `Tab` / `Maj+Tab` passent d'un élément au suivant ou au précédent. Dans une liste, les
   flèches parcourent les lignes, puis passent à l'élément voisin aux extrémités.
 - **Modification** : `Entrée` ou `Espace` entre dans un champ de saisie ou ouvre un choix. Sur une cellule, taper du texte
-  ou un chiffre suffit aussi : la saisie remplace le contenu (`Échap` le rétablit). Dans un champ, `Entrée` valide et `Échap`
-  annule. Dans un choix ouvert, `↑` `↓` parcourent les options, `Entrée` ou `Espace` valident et `Échap` referme sans rien
-  changer ; sur un choix fermé, taper une lettre ou un chiffre saute à l'option correspondante.
+  ou un chiffre suffit aussi : la saisie remplace le contenu (`Échap` le rétablit). Dans un champ, `Entrée` valide et passe à
+  l'élément suivant, `Échap` annule et reste. Dans un choix ouvert, `↑` `↓` parcourent les options, `Entrée` ou `Espace`
+  valident (et passent à l'élément suivant) et `Échap` referme sans rien changer ; sur un choix fermé, taper une lettre ou un chiffre saute à l'option correspondante.
 
 Les raccourcis généraux affichés en bas de la fenêtre utilisent tous `Ctrl`, pour ne jamais gêner la saisie. Comme dans
 Posting, le panneau qui a le focus garde un cadre fin mais pleinement coloré (les autres sont atténués) et son titre passe

@@ -187,12 +187,12 @@ class LobbyScreen(Screen):
         Binding("ctrl+k", "focus_code", "Code"),
     ]
     CSS = """
-    #lobby-body { height: auto; padding: 0 2; }
-    #mine-pane, #public-pane { width: 1fr; height: auto; max-height: 100%; }
+    #lobby-body { width: 100%; height: 1fr; padding: 0 2; }
+    #mine-pane, #public-pane { width: 1fr; height: 100%; }
     #mine-pane { margin-right: 1; }
-    #join-pane { margin: 1 2 0 2; height: auto; }
+    #my-games, #public-games { height: 1fr; max-height: 100%; }
     #join-pane Input { width: 24; margin-right: 1; }
-    #join-pane .actions { width: 1fr; height: 1; align-horizontal: right; }
+    #join-pane .grow { width: 1fr; }
     """
 
     def compose(self) -> ComposeResult:
@@ -205,12 +205,12 @@ class LobbyScreen(Screen):
             with Vertical(id="public-pane", classes="pane") as public:
                 public.border_title = "Parties publiques"
                 yield NavOptionList(id="public-games")
-        with Horizontal(id="join-pane", classes="pane") as join:
+        with Horizontal(id="join-pane", classes="pane bottom") as join:
             join.border_title = "Rejoindre avec un code"
             yield NavInput(placeholder="CODE", id="code", max_length=5)
             yield Button("Rejoindre", id="join-code")
-            with Horizontal(classes="actions"):
-                yield Button("Créer une partie", id="create", variant="primary")
+            yield Static("", classes="grow")
+            yield Button("Créer une partie", id="create", variant="primary")
         yield Footer(show_command_palette=False)
 
     def on_mount(self) -> None:
@@ -281,10 +281,10 @@ class CreateScreen(Screen):
         Binding("escape", "back", "Annuler"),
     ]
     CSS = """
-    #create-body { height: auto; padding: 0 2; }
-    #form-pane, #rules-pane { width: 1fr; height: auto; }
+    #create-body { width: 100%; height: 1fr; padding: 0 2; }
+    #form-pane, #rules-pane { width: 1fr; height: 100%; }
     #form-pane { margin-right: 1; }
-    #form-error { height: auto; }
+    #form-error { width: 1fr; height: 1; }
     """
 
     def compose(self) -> ComposeResult:
@@ -328,10 +328,10 @@ class CreateScreen(Screen):
                 yield _field("", NavInput(placeholder="N (défaut 12)", id="primer-words", type="integer"), row_id="primer-row")
                 yield _field("Mots minimum", NavInput(placeholder="facultatif", id="min-words", type="integer"))
                 yield _field("Mots maximum", NavInput(placeholder="facultatif", id="max-words", type="integer"))
-                yield Static("", id="form-error", classes="error")
-                with Horizontal(classes="buttons"):
-                    yield Button("Créer", id="submit", variant="primary")
-                    yield Button("Annuler", id="cancel")
+        with Horizontal(classes="pane bottom actions"):
+            yield Static("", id="form-error", classes="error")
+            yield Button("Créer", id="submit", variant="primary")
+            yield Button("Annuler", id="cancel")
         yield Footer(show_command_palette=False)
 
     def on_mount(self) -> None:
@@ -386,10 +386,10 @@ class WaitingScreen(Screen):
         Binding("escape", "back", "Retour"),
     ]
     CSS = """
-    #waiting-body { height: auto; padding: 0 2; }
-    #left, #right { width: 1fr; height: auto; }
+    #waiting-body { width: 100%; height: 1fr; padding: 0 2; }
+    #left, #right { width: 1fr; height: 100%; }
     #left { margin-right: 1; }
-    #waiting-actions { margin: 1 2 0 2; }
+    #players-pane, #hint-pane { height: 1fr; }
     #code-line { text-align: center; padding: 1 0; }
     """
 
@@ -415,7 +415,7 @@ class WaitingScreen(Screen):
                 with Vertical(id="hint-pane", classes="pane") as hint:
                     hint.border_title = "Prochaine étape"
                     yield Static("", id="hint")
-        with Horizontal(id="waiting-actions", classes="buttons"):
+        with Horizontal(id="waiting-actions", classes="pane bottom actions"):
             yield Button("Lancer la partie", id="start", variant="primary")
             yield Button("Quitter la partie", id="leave", variant="warning")
             yield Button("Retour", id="back")
@@ -516,12 +516,14 @@ class GameScreen(Screen):
         Binding("escape", "back", "Retour"),
     ]
     CSS = """
-    #game-body { height: auto; padding: 0 2; }
-    #side { width: 34; height: auto; margin-right: 1; }
-    #main { width: 1fr; height: auto; }
-    #draft { height: 6; }
-    #counter { height: 1; margin-bottom: 1; }
-    #game-actions { margin: 1 2 0 2; }
+    #game-body { width: 100%; height: 1fr; padding: 0 2; }
+    #side { width: 34; height: 100%; margin-right: 1; }
+    #info-pane { height: 1fr; }
+    #main { width: 1fr; height: 100%; }
+    #primer-pane.-solo { height: 1fr; }
+    #write-pane { height: 1fr; }
+    #draft { height: 1fr; }
+    #counter { height: 1; }
     """
 
     def __init__(self, game_id: str) -> None:
@@ -549,9 +551,8 @@ class GameScreen(Screen):
                     write.border_title = "Ton texte"
                     yield TextArea(id="draft", soft_wrap=True, show_line_numbers=False, tab_behavior="focus")
                     yield Static("", id="counter")
-                    with Horizontal(classes="buttons"):
-                        yield Button("Envoyer", id="send", variant="primary")
-        with Horizontal(id="game-actions", classes="buttons"):
+        with Horizontal(id="game-actions", classes="pane bottom actions"):
+            yield Button("Envoyer", id="send", variant="primary")
             yield Button("Retour", id="back")
         yield Footer(show_command_palette=False)
 
@@ -632,6 +633,8 @@ class GameScreen(Screen):
         primer_pane = self.query_one("#primer-pane")
         write_pane = self.query_one("#write-pane")
         write_pane.display = running and view.my_turn
+        primer_pane.set_class(not write_pane.display, "-solo")  # the primer pane takes the height when alone
+        self.query_one("#send", Button).display = write_pane.display
         if running and view.my_turn:
             primer_pane.border_title = "Amorce"
             self.query_one("#primer", Static).update(primer_help(view))
@@ -713,13 +716,13 @@ class FinalScreen(Screen):
         Binding("escape", "back", "Retour"),
     ]
     CSS = """
-    #final-body { height: 1fr; padding: 0 2; }
-    #final-side { width: 34; height: auto; margin-right: 1; }
-    #final-main { width: 1fr; height: 1fr; }
+    #final-body { width: 100%; height: 1fr; padding: 0 2; }
+    #final-side { width: 34; height: 100%; margin-right: 1; }
+    #final-info-pane { height: 100%; }
+    #final-main { width: 1fr; height: 100%; }
     #story-scroll { height: 1fr; }
-    #save-pane { margin: 1 2 0 2; height: auto; }
     #save-pane .frow { margin-bottom: 0; }
-    #final-actions { height: 1; margin-top: 1; }
+    #final-actions { height: 1; margin-top: 1; align-horizontal: right; }
     """
 
     def __init__(self, game_id: str) -> None:
@@ -739,14 +742,14 @@ class FinalScreen(Screen):
                 main.border_title = "L'histoire"
                 with NavScroll(id="story-scroll"):
                     yield Static("", id="story")
-        with Vertical(id="save-pane", classes="pane") as save:
+        with Vertical(id="save-pane", classes="pane bottom") as save:
             save.border_title = "Garder l'histoire"
             yield _field("Dossier", NavInput(value=config.export_dir or export.default_export_dir(), id="export-dir"))
             yield _field(
                 "Format",
                 NavSelect([(label, key) for key, label in export.FORMATS.items()], value="md", allow_blank=False, id="export-format"),
             )
-            with Horizontal(id="final-actions"):
+            with Horizontal(id="final-actions", classes="actions"):
                 yield Button("Enregistrer", id="save", variant="primary")
                 yield Button("Copier", id="copy")
                 yield Button("Retour", id="back")

@@ -202,6 +202,13 @@ Button.-warning:focus { background: $cadav-focus; color: $cadav-on-color; }
 Button:disabled { opacity: 0.4; }
 .buttons { height: 1; margin-top: 1; }
 
+/* the panel at the bottom of a screen, above the footer, as wide as the body */
+.bottom { height: auto; margin: 0 2; }
+.actions { align-horizontal: right; }
+.actions Button { margin: 0 0 0 1; }
+.bottom Button { margin-right: 1; }
+.actions Button:last-of-type { margin-right: 0; }
+
 /* multi-line text */
 TextArea { border: none; background: $surface; color: $cadav-strong; padding: 0 1; }
 TextArea:focus { border: none; border-left: outer $accent; padding-left: 0; background: $surface; }

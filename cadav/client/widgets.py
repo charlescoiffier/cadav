@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 
-from textual import events
+from textual import events, on
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Input, OptionList, Select
@@ -57,6 +57,7 @@ class NavInput(Input):
     async def action_commit_edit(self) -> None:
         self._end_edit()
         await super().action_submit()
+        self.screen.focus_next()  # validated: on to the next element
 
     def action_cancel_edit(self) -> None:
         self.value = self._backup
@@ -130,6 +131,12 @@ class NavSelect(Select, inherit_bindings=False):
     """
 
     BINDINGS = [Binding("enter,space", "show_overlay", "Choisir")]
+
+    @on(SelectOverlay.UpdateSelection)
+    def _chosen(self, event: SelectOverlay.UpdateSelection) -> None:
+        # Textual's own handler (run just after) applies the choice and refocuses the select:
+        # once it is done, move on to the next element.
+        self.call_after_refresh(self.screen.focus_next)
 
     def compose(self):
         yield SelectCurrent(self.prompt)

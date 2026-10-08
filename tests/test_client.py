@@ -93,9 +93,9 @@ async def test_first_launch_registers_and_saves_config(backend):
         assert app.focused.id == "pseudo"
         await pilot.press(*"ana")  # typing on the cell starts editing it straight away
         assert app.screen.query_one("#pseudo", Input).value == "ana" and app.focused.editing
-        await pilot.press("enter")  # validate
-        assert not app.focused.editing and app.screen.query_one("#pseudo", Input).value == "ana"
-        await pilot.press("down", "down", "enter")  # server field, then the "Entrer" button
+        await pilot.press("enter")  # validate: the focus moves on to the server field
+        assert app.screen.query_one("#pseudo", Input).value == "ana" and focused_id(app) == "server"
+        await pilot.press("down", "enter")  # the "Entrer" button
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         await until(pilot, lambda: app.pseudo == "ana")
         assert "ana@" in text(app, "#status") and "Connecté" in text(app, "#status")
@@ -443,6 +443,7 @@ async def test_field_enters_editing_with_enter_or_space_and_esc_cancels(backend)
         assert not theme.editing and theme.value == "" and app.focused is theme
         await pilot.press("enter", *"phare", "enter")  # Enter validates and keeps the value
         assert not theme.editing and theme.value == "phare"
+        await pilot.press("up")  # validating moved the focus on: come back to the field
         await pilot.press("enter", *"x", "escape")  # a second edit can be cancelled too
         assert theme.value == "phare"
         assert isinstance(app.screen, CreateScreen)  # Esc left the edit, not the screen
@@ -460,8 +461,8 @@ async def test_typing_on_a_cell_replaces_its_content_and_esc_restores_it(backend
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         await pilot.press("down", "down", "down", *"phare", "enter")
         theme = app.screen.query_one("#theme", Input)
-        assert theme.value == "phare" and not theme.editing
-        await pilot.press(*"mer")  # typing again replaces what was there
+        assert theme.value == "phare" and not theme.editing and focused_id(app) == "primer"
+        await pilot.press("up", *"mer")  # back on the cell: typing again replaces what was there
         assert theme.editing and theme.value == "mer"
         await pilot.press("escape")
         assert theme.value == "phare" and not theme.editing
@@ -497,15 +498,15 @@ async def test_select_opens_with_enter_or_space_and_keeps_arrows_for_navigation(
         await pilot.pause()
         await pilot.press("down", "down", "enter")  # 4 -> 5 -> 6, validate with Enter
         await pilot.pause()
-        assert players.value == 6 and app.focused is players
-        await pilot.press("space")  # opens with Space
+        assert players.value == 6 and focused_id(app) == "deadline"  # validated: on to the next element
+        await pilot.press("up", "space")  # opens with Space
         await pilot.pause()
         await pilot.press("down", "space")  # and Space validates the highlighted option too
         await pilot.pause()
-        assert players.value == 7 and app.focused is players
-        await pilot.press("space")
+        assert players.value == 7 and focused_id(app) == "deadline"
+        await pilot.press("up", "space")
         await pilot.pause()
-        await pilot.press("up", "escape")  # Esc closes without changing anything
+        await pilot.press("up", "escape")  # Esc closes without changing anything, and stays here
         await pilot.pause()
         assert players.value == 7 and app.focused is players and isinstance(app.screen, CreateScreen)
 
@@ -971,3 +972,113 @@ async def test_leaving_a_running_game_needs_two_presses(backend):
         await pilot.press("ctrl+o")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         assert "ana" in backend.server.games[gid].left
+
+
+# --- validating moves the focus on --------------------------------------------
+
+
+async def test_validating_a_field_moves_to_the_next_element_but_cancelling_does_not(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("down", "down", "down")
+        assert focused_id(app) == "theme"
+        await pilot.press(*"mer", "escape")  # cancel: the focus stays
+        assert focused_id(app) == "theme"
+        await pilot.press(*"mer", "enter")  # validate: the next element (the primer choice)
+        assert focused_id(app) == "primer"
+        await pilot.press("down", *"10", "enter")  # min-words -> max-words
+        assert app.screen.query_one("#min-words", Input).value == "10" and focused_id(app) == "max-words"
+
+
+async def test_choosing_in_a_menu_moves_to_the_next_element(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("enter")  # opens "Visibilité"
+        await pilot.pause()
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert app.screen.query_one("#visibility", Select).value == "private" and focused_id(app) == "players"
+        await pilot.press("8")  # typing on a closed choice does not move on
+        assert app.screen.query_one("#players", Select).value == 8 and focused_id(app) == "players"
+
+
+# --- layout: full-height panels and a bottom panel above the footer ------------
+
+
+def region(app, selector):
+    return app.screen.query_one(selector).region
+
+
+async def test_lobby_layout_fills_the_height_with_the_join_panel_at_the_bottom(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        mine, public, join = region(app, "#mine-pane"), region(app, "#public-pane"), region(app, "#join-pane")
+        assert mine.height == public.height and mine.height > 20  # both stretch over the remaining height
+        assert join.y > mine.bottom - 1 and join.bottom == SIZE[1] - 1  # right above the footer line
+        assert join.x == mine.x and join.right == public.right  # as wide as the two panels
+
+
+async def test_create_layout_same_height_and_actions_bottom_right(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        form, rules = region(app, "#form-pane"), region(app, "#rules-pane")
+        assert form.height == rules.height and form.height > 15
+        submit, cancel = region(app, "#submit"), region(app, "#cancel")
+        assert cancel.bottom == SIZE[1] - 2 and submit.y == cancel.y  # in the panel above the footer
+        assert cancel.right >= rules.right - 2  # buttons pushed to the right edge
+
+
+async def test_waiting_layout_columns_and_actions(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
+        left, right = region(app, "#left"), region(app, "#right")
+        assert left.bottom == right.bottom and left.height > 20
+        assert region(app, "#players-pane").bottom == left.bottom  # the last panel of each column stretches
+        assert region(app, "#hint-pane").bottom == right.bottom
+        assert region(app, "#back").bottom == SIZE[1] - 2 and region(app, "#back").right >= right.right - 2
+
+
+async def test_game_layout_writing_panel_is_full_height(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await start_three(backend, app, pilot, ["ana", "bob", "cleo"])
+        write, side = region(app, "#write-pane"), region(app, "#side")
+        assert write.bottom == side.bottom  # down to the bottom panel
+        assert write.height > 25 and region(app, "#draft").height > 20
+        assert region(app, "#back").bottom == SIZE[1] - 2 and region(app, "#send").y == region(app, "#back").y
+
+
+async def test_game_layout_when_waiting_for_others_the_primer_panel_takes_the_height(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await start_three(backend, app, pilot, ["bob", "ana", "cleo"])
+        assert region(app, "#primer-pane").bottom == region(app, "#side").bottom
+        assert not app.screen.query_one("#send", Button).display
+
+
+async def test_final_layout_panels_full_height_and_aligned_with_the_bottom_panel(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await finish_game(backend, app, pilot)
+        info, story, save = region(app, "#final-info-pane"), region(app, "#final-main"), region(app, "#save-pane")
+        assert info.height == story.height and info.height > 20
+        assert story.right == save.right and info.x == save.x  # same left and right edges as the bottom panel
+        assert region(app, "#back").right >= save.right - 2  # buttons on the right
