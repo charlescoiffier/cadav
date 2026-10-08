@@ -65,7 +65,7 @@ class TopBar(Horizontal):
     def refresh_bar(self) -> None:
         app = self.app
         self.query_one("#brand", Static).update(
-            Text.assemble(("▌Cadavre exquis", "bold"), (f"  ›  {self.place}", MUTED))
+            Text.assemble(("▌cadav", "bold"), (f"  ›  {self.place}", MUTED))
         )
         dot, color, label = STATE_TEXT.get(app.status, ("○", MUTED, app.status))
         server = app.config.url.split("://", 1)[-1]
@@ -136,9 +136,9 @@ class LoginScreen(Screen):
         config = self.app.config
         with Vertical(id="login-card", classes="pane") as card:
             card.border_title = "Connexion"
-            yield Static("░▒▓  C A D A V R E   E X Q U I S  ▓▒░", id="logo")
+            yield Static("░▒▓   c a d a v   ▓▒░", id="logo")
             yield Static(
-                "Choisis un pseudo, sans mot de passe.\nUn secret est créé et gardé sur cet ordinateur.",
+                "Le cadavre exquis en terminal.\nChoisis un pseudo, sans mot de passe : un secret est créé et gardé sur cet ordinateur.",
                 id="tagline",
                 classes="muted",
             )

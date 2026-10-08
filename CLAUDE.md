@@ -1,4 +1,4 @@
-# Cadavre exquis TUI
+# cadav : cadavre exquis TUI
 
 Jeu de cadavre exquis textuel multijoueur en terminal (Python, Textual, WebSocket).
 

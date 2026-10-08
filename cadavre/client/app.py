@@ -45,7 +45,7 @@ _EVENTS_WITH_VIEW = (PlayerJoined, PlayerLeft, GameStarted, TurnStarted, TurnSki
 
 
 class CadavreApp(App):
-    TITLE = "Cadavre exquis"
+    TITLE = "cadav"
     CSS = APP_CSS
     ENABLE_COMMAND_PALETTE = False
     BINDINGS = [Binding("ctrl+q", "quit", "Quitter")]

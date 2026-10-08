@@ -1,4 +1,4 @@
-# Cadavre exquis en terminal — Cahier des charges v1 (révision 6)
+# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 7)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -21,7 +21,8 @@ Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. U
 | Identité | Pseudo + secret local, sans mot de passe |
 | Persistance | Fichiers JSON, écriture atomique, pas de base de données |
 | Parties par joueur | Plusieurs en parallèle, plafond de 5 parties actives par pseudo |
-| Code | Un seul paquet : `cadavre play` (client) et `cadavre serve` (serveur) |
+| Nom | L'application s'appelle **cadav** (en minuscules) : titres, commandes (`cadav serve`, `cadav play`), dossier de configuration (`~/.config/cadav/`). Le paquet Python interne reste `cadavre/` |
+| Code | Un seul paquet : `cadav play` (client) et `cadav serve` (serveur) |
 | Langue | Interface en français pour l'instant |
 | Export | Copie dans le presse-papiers et export `.txt` / `.md` depuis l'écran final |
 
@@ -120,7 +121,7 @@ cadavre/
   server.py        # WebSocket, lobby, échéances
   storage.py       # JSON atomique (users, games, archive)
   client/          # app Textual : app.py, screens.py, connection.py, config.py, logic.py
-  cli.py           # cadavre play | cadavre serve
+  cli.py           # cadav play | cadav serve
 tests/
 ```
 La logique de jeu reste pure (sans réseau ni disque), donc testable seule.
@@ -151,12 +152,12 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Chaque changement est écrit sur disque avant d'être oublié ; une erreur d'écriture est journalisée sans faire tomber la partie. Un fichier de partie illisible est ignoré au démarrage.
 - Les parties terminées passent de `data/games/` à `data/archive/` ; une salle vidée ou expirée est supprimée.
 - Un `leave_game` ou `submit_text` d'un non-membre renvoie `not_in_game`, sans révéler si la partie existe.
-- Lancement du serveur : `cadavre serve --port 8765 --data-dir data` (options `--cert` et `--key` pour TLS), équivalent à `python -m cadavre.server`.
+- Lancement du serveur : `cadav serve --port 8765 --data-dir data` (options `--cert` et `--key` pour TLS), équivalent à `python -m cadavre.server`.
 - Dépendance ajoutée : `websockets` (prévue au §3).
 
 ## 18. Décisions d'implémentation (jalon 3)
-- Le client est un paquet `cadavre/client/` : `logic.py` (analyse du formulaire et textes, sans Textual ni réseau, testé seul), `config.py`, `connection.py` (WebSocket), `screens.py` et `app.py`. Lancement : `cadavre play [--url ws://…] [--config fichier]`, équivalent à `python -m cadavre.client`.
-- Configuration locale : `~/.config/cadavre/config.json` (ou `$XDG_CONFIG_HOME`, ou `$CADAVRE_CONFIG`), contenant `pseudo`, `secret` (64 caractères hexadécimaux) et `url` ; écrite de façon atomique avec les droits `0600`. URL par défaut : `ws://localhost:8765`.
+- Le client est un paquet `cadavre/client/` : `logic.py` (analyse du formulaire et textes, sans Textual ni réseau, testé seul), `config.py`, `connection.py` (WebSocket), `screens.py` et `app.py`. Lancement : `cadav play [--url ws://…] [--config fichier]`, équivalent à `python -m cadavre.client`.
+- Configuration locale : `~/.config/cadav/config.json` (ou `$XDG_CONFIG_HOME`, ou `$CADAV_CONFIG`), contenant `pseudo`, `secret` (64 caractères hexadécimaux) et `url` ; écrite de façon atomique avec les droits `0600`. URL par défaut : `ws://localhost:8765`.
 - Premier lancement : écran de connexion (pseudo + serveur) ; le secret est généré à ce moment et n'est enregistré qu'une fois l'inscription acceptée. Un secret refusé par le serveur ramène à l'écran de connexion ; saisir le même pseudo réutilise le secret stocké, un autre pseudo crée un nouveau compte.
 - Reconnexion automatique (1, 2, 4 puis 8 s) avec ré-authentification ; pas de reconnexion si la connexion a été remplacée par un autre terminal (code 4000) ou si le client est trop ancien (code 4001).
 - Le client ne garde que `games` (les projections reçues) et `lobby` ; chaque message serveur remplace la projection concernée, et l'écran affiché se met à jour.
@@ -166,7 +167,7 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Dépendance ajoutée : `textual` (prévue au §3).
 
 ## 19. Habillage et raccourcis (révision 6)
-- Thème Textual `cadavre` et feuille de style commune dans `cadavre/client/theme.py` (palette violette, pastilles `chip()`) ; styles propres à chaque écran dans la classe de l'écran (`CSS`, pas `DEFAULT_CSS`, qui serait écrasé par la feuille commune).
+- Thème Textual `cadav` et feuille de style commune dans `cadavre/client/theme.py` (palette violette, pastilles `chip()`) ; styles propres à chaque écran dans la classe de l'écran (`CSS`, pas `DEFAULT_CSS`, qui serait écrasé par la feuille commune).
 - Barre du haut (`TopBar`) sur chaque écran sauf la connexion ; pied de page Textual sans palette de commandes.
 - Lobby : deux panneaux (« Mes parties » avec pastilles `À TOI`, `ATTENTE`, `EN COURS`, `TERMINÉE` ; « Parties publiques ») et un panneau « Rejoindre avec un code ». Raccourcis : `n` nouvelle partie, `c` saisir un code, `Entrée` ouvrir ou rejoindre la ligne choisie, `Ctrl+Q` quitter. Au retour d'un autre écran, le focus revient sur la liste pour que `n` et `c` fonctionnent.
 - Création : deux panneaux (« Partie », « Écriture »). `Ctrl+S` crée, `Échap` annule.

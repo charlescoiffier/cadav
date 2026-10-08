@@ -18,4 +18,4 @@ def test_subcommands_are_wired(command, capsys):
     with pytest.raises(SystemExit) as e:
         cli.main([command, "--help"])
     assert e.value.code == 0
-    assert f"cadavre {command}" in capsys.readouterr().out
+    assert f"cadav {command}" in capsys.readouterr().out

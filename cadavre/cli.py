@@ -1,13 +1,13 @@
-"""Command line entry point: ``cadavre serve`` and ``cadavre play``."""
+"""Command line entry point: ``cadav serve`` and ``cadav play``."""
 
 from __future__ import annotations
 
 import sys
 
-USAGE = """usage: cadavre {serve,play} [options]
+USAGE = """usage: cadav {serve,play} [options]
 
-  serve   lance le serveur (cadavre serve --help)
-  play    lance le client  (cadavre play --help)
+  serve   lance le serveur (cadav serve --help)
+  play    lance le client  (cadav play --help)
 """
 
 

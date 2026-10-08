@@ -22,7 +22,7 @@ FOREGROUND = "#e9e1f5"
 MUTED = "#8f7fb0"
 
 CADAVRE_THEME = Theme(
-    name="cadavre",
+    name="cadav",
     primary=PRIMARY,
     secondary=SECONDARY,
     accent=ACCENT,

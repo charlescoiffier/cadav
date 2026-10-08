@@ -1,12 +1,12 @@
 [project]
-name = "cadavre"
+name = "cadav"
 version = "0.1.0"
-description = "Cadavre exquis multijoueur en terminal"
+description = "cadav : cadavre exquis multijoueur en terminal"
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.6", "websockets>=13", "textual>=1.0"]
 
 [project.scripts]
-cadavre = "cadavre.cli:main"
+cadav = "cadavre.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.23"]

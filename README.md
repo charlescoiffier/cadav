@@ -1,10 +1,10 @@
-# Cadavre exquis
+# cadav
 
 [![CI](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml/badge.svg)](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Jalon](https://img.shields.io/badge/jalon-3%20sur%206-orange)
 
-Un jeu de cadavre exquis textuel et multijoueur, à jouer dans le terminal. Un serveur central gère le lobby et toutes
+**cadav** est un jeu de cadavre exquis textuel et multijoueur, à jouer dans le terminal. Un serveur central gère le lobby et toutes
 les parties ; chaque joueur écrit à son tour un morceau d'histoire sans voir ce qu'ont écrit les autres.
 
 > **État du projet : en construction.** On peut déjà lancer un serveur, se connecter, créer ou rejoindre une partie et attendre les autres joueurs
@@ -110,7 +110,7 @@ cadavre/
   game.py          # logique pure : ordre, tours, amorce, échéances, view_for
   storage.py       # JSON atomique : comptes, parties en cours, archives
   server.py        # WebSocket : comptes, lobby, parties, échéances
-  cli.py           # cadavre serve | cadavre play
+  cli.py           # cadav serve | cadav play
   client/
     theme.py       # thème violet, feuille de style commune, pastilles
     app.py         # application Textual : connexion, état, navigation
@@ -139,16 +139,16 @@ Depuis le dossier du projet (sur macOS la commande `python` n'existe pas : on pa
 l'environnement avec `source .venv/bin/activate`). Dans un premier terminal, le serveur :
 
 ```bash
-.venv/bin/cadavre serve --port 8765 --data-dir data
+.venv/bin/cadav serve --port 8765 --data-dir data
 ```
 
 Dans un ou plusieurs autres, un client (`--config` permet de simuler plusieurs joueurs sur la même machine) :
 
 ```bash
-.venv/bin/cadavre play --url ws://localhost:8765 --config /tmp/joueur1.json
+.venv/bin/cadav play --url ws://localhost:8765 --config /tmp/joueur1.json
 ```
 
-Sans `--config`, le pseudo et le secret sont gardés dans `~/.config/cadavre/config.json` (droits `0600`).
+Sans `--config`, le pseudo et le secret sont gardés dans `~/.config/cadav/config.json` (droits `0600`).
 
 ## Principes
 

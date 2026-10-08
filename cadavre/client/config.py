@@ -14,10 +14,10 @@ DEFAULT_URL = "ws://localhost:8765"
 
 
 def default_config_path() -> Path:
-    if env := os.environ.get("CADAVRE_CONFIG"):
+    if env := os.environ.get("CADAV_CONFIG"):
         return Path(env)
     base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
-    return base / "cadavre" / "config.json"
+    return base / "cadav" / "config.json"
 
 
 def new_secret() -> str:
