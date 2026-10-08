@@ -2,14 +2,14 @@
 
 [![CI](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml/badge.svg)](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-![Jalon](https://img.shields.io/badge/jalon-3%20sur%206-orange)
+![Jalon](https://img.shields.io/badge/jalon-4%20sur%206-orange)
 
 **cadav** est un jeu de cadavre exquis textuel et multijoueur, à jouer dans le terminal. Un serveur central gère le lobby et toutes
 les parties ; chaque joueur écrit à son tour un morceau d'histoire sans voir ce qu'ont écrit les autres.
 
-> **État du projet : en construction.** On peut déjà lancer un serveur, se connecter, créer ou rejoindre une partie et attendre les autres joueurs
-> (jalons 1 à 3). L'écran d'écriture, l'écran final et l'installation arrivent aux jalons suivants : on ne peut pas encore
-> écrire dans une partie.
+> **État du projet : en construction.** On peut déjà lancer un serveur, se connecter, créer ou rejoindre une partie et jouer une partie de bout en bout (jalons 1
+> à 4), en lisant l'histoire à la fin. L'écran final complet (copie, export) et l'installation avec `pipx` arrivent aux
+> jalons suivants.
 
 ---
 
@@ -46,7 +46,7 @@ rejoint une partie, puis on écrit quand vient son tour.
 | 1 | Protocole et logique de jeu, avec leurs tests | Fait |
 | 2 | Stockage JSON et serveur WebSocket | Fait |
 | 3 | Client : lobby, création, salle d'attente | Fait |
-| 4 | Écran de partie et reprise à la connexion | À faire |
+| 4 | Écran de partie et reprise à la connexion | Fait |
 | 5 | Écran final, export (`.txt`, `.md`, presse-papiers), installation avec `pipx` | À faire |
 | 6 | Déploiement sur un serveur (WSS) et essais en conditions réelles | À faire |
 
@@ -65,6 +65,10 @@ Textual), avec le thème de base de Posting (« galaxy ») et un accent orange. 
 | La création d'une partie | La salle d'attente |
 |---|---|
 | ![Le formulaire de création d'une partie](docs/images/creation.png) | ![La salle d'attente avec le code, les réglages et les joueurs](docs/images/salle-attente.png) |
+
+| À toi d'écrire : l'amorce, ton texte et son compteur | L'histoire révélée à la fin |
+|---|---|
+| ![L'écran de partie : amorce, zone de saisie, compteur de mots, échéance](docs/images/partie.png) | ![L'histoire complète, chaque contribution attribuée à son auteur](docs/images/histoire.png) |
 
 ### Au clavier
 
@@ -88,7 +92,12 @@ modification passe en blanc.
 | | `Entrée` / `Espace` | Ouvrir une de mes parties, ou rejoindre une partie publique |
 | Création | `Ctrl+S` / `Échap` | Créer la partie / annuler |
 | Salle d'attente | `Ctrl+L` | Lancer la partie (hôte, au moins 3 joueurs) |
-| | `Ctrl+X` / `Échap` | Quitter la partie / revenir au lobby |
+| | `Ctrl+O` / `Échap` | Quitter la partie / revenir au lobby |
+| Partie | `Ctrl+S` | Envoyer son texte (quand c'est ton tour) |
+| | `Échap` | Sortir de la zone de saisie, puis revenir au lobby |
+| | `Ctrl+O` | Quitter la partie (à presser deux fois) |
+| Lobby, salle, partie | `Ctrl+T` | Aller à une partie qui attend ton texte |
+| | `Ctrl+G` | Passer à ta partie suivante |
 | Partout | `Ctrl+Q` | Quitter |
 
 ---
@@ -140,7 +149,7 @@ cadav/
     theme.py       # palettes (galaxy, solarized-dark), thème Textual, feuille de style, pastilles
     widgets.py     # champs, choix et listes pilotés au clavier (mode navigation / édition)
     app.py         # application Textual : connexion, état, navigation
-    screens.py     # connexion, lobby, création, salle d'attente (et leurs raccourcis)
+    screens.py     # connexion, lobby, création, salle d'attente, partie (et leurs raccourcis)
     connection.py  # WebSocket client avec reconnexion
     config.py      # pseudo, secret et serveur, en local
     logic.py       # formulaire et textes affichés (pur, testé seul)

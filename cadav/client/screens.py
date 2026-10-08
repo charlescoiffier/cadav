@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Input, OptionList, Select, Static
+from textual.widgets import Button, Footer, Input, OptionList, Select, Static, TextArea
 from textual.widgets.option_list import Option
 
 from cadav.client.config import DEFAULT_URL
@@ -15,8 +15,10 @@ from cadav.client.logic import (
     build_settings,
     describe_settings,
     format_duration,
-    primer_text,
-    words_text,
+    format_remaining,
+    primer_help,
+    turn_position,
+    word_status,
 )
 from cadav.client.widgets import NavInput, NavOptionList, NavSelect
 from cadav.client.theme import chip, colors
@@ -29,6 +31,7 @@ from cadav.protocol import (
     LeaveGame,
     LobbyEntry,
     StartGame,
+    SubmitText,
     Visibility,
 )
 
@@ -66,6 +69,19 @@ class TopBar(Horizontal):
         server = app.config.url.split("://", 1)[-1]
         who = f"{app.pseudo}@{server}  " if app.pseudo else ""
         self.query_one("#status", Static).update(Text.assemble(who, (f"{dot} {label}", color)))
+
+
+class Banner(Static):
+    """A discreet one-line notice about what happens in the other games."""
+
+    DEFAULT_CSS = """
+    Banner { height: 1; padding: 0 1; background: $surface; color: $warning; display: none; }
+    """
+
+    def refresh_banner(self) -> None:
+        text = self.app.banner
+        self.display = bool(text)
+        self.update(Text.assemble(("● ", colors.warning), text) if text else "")
 
 
 def _field(label: str, widget, row_id: str | None = None) -> Horizontal:
@@ -179,6 +195,7 @@ class LobbyScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield TopBar("Lobby")
+        yield Banner()
         with Horizontal(id="lobby-body"):
             with Vertical(id="mine-pane", classes="pane") as mine:
                 mine.border_title = "Mes parties"
@@ -206,6 +223,7 @@ class LobbyScreen(Screen):
     def refresh_view(self) -> None:
         app = self.app
         self.query_one(TopBar).refresh_bar()
+        self.query_one(Banner).refresh_banner()
         _set_options(
             self.query_one("#my-games", OptionList),
             [(v.game_id, my_game_prompt(v)) for v in app.games.values()],
@@ -233,13 +251,7 @@ class LobbyScreen(Screen):
         if event.option_list.id == "public-games":
             await self.app.send(JoinGame(game_id=game_id))
             return
-        view = self.app.games.get(game_id)
-        if view is None:
-            return
-        if view.status == GameStatus.WAITING:
-            self.app.push_screen(WaitingScreen(game_id))
-        else:
-            self.app.notify("L'écran de partie n'est pas encore disponible.")
+        self.app.open_game(game_id)
 
     async def _join_code(self) -> None:
         code = self.query_one("#code", Input).value.strip()
@@ -368,7 +380,7 @@ class WaitingScreen(Screen):
     ready = False
     BINDINGS = [
         Binding("ctrl+l", "start", "Lancer"),
-        Binding("ctrl+x", "leave", "Quitter la partie"),
+        Binding("ctrl+o", "leave", "Quitter la partie"),
         Binding("escape", "back", "Retour"),
     ]
     CSS = """
@@ -385,6 +397,7 @@ class WaitingScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield TopBar("Salle d'attente")
+        yield Banner()
         with Horizontal(id="waiting-body"):
             with Vertical(id="left"):
                 with Vertical(id="code-pane", classes="pane") as code:
@@ -416,10 +429,14 @@ class WaitingScreen(Screen):
 
     def refresh_view(self) -> None:
         view = self.app.games.get(self.game_id)
+        if view is not None and view.status != GameStatus.WAITING and self.app.screen is self:
+            self.app.switch_screen(GameScreen(self.game_id))  # the game has started
+            return
         if view is None or view.status != GameStatus.WAITING:
-            self._close()  # left, deleted, expired or already started: the lobby shows the rest
+            self._close()  # left, deleted or expired: the lobby shows the rest
             return
         self.query_one(TopBar).refresh_bar()
+        self.query_one(Banner).refresh_banner()
         is_host = view.host == self.app.pseudo
         enough = len(view.players) >= MIN_PLAYERS
         self.query_one("#code-line", Static).update(
@@ -478,5 +495,223 @@ class WaitingScreen(Screen):
             await self.action_start()
         elif event.button.id == "leave":
             await self.action_leave()
+        else:
+            self._close()
+
+
+class GameScreen(Screen):
+    """A running or finished game: who writes, the primer, the draft and the deadline."""
+
+    ready = False
+    AUTO_FOCUS = ""  # the focus is placed by hand: the text area only exists on our turn
+    BINDINGS = [
+        Binding("ctrl+s", "send", "Envoyer"),
+        Binding("ctrl+o", "leave", "Quitter la partie"),
+        Binding("escape", "leave_text", "Quitter la saisie"),
+        Binding("escape", "back", "Retour"),
+    ]
+    CSS = """
+    #game-body { height: auto; padding: 1 1 0 1; }
+    #side { width: 34; height: auto; margin-right: 1; }
+    #main { width: 1fr; height: auto; }
+    #draft { height: 8; }
+    #counter { height: 1; margin-bottom: 1; }
+    #story { height: auto; }
+    #game-actions { margin: 1 1 0 1; }
+    """
+
+    def __init__(self, game_id: str) -> None:
+        super().__init__()
+        self.game_id = game_id
+        self._was_my_turn = False
+        self._leave_armed = False
+
+    def compose(self) -> ComposeResult:
+        yield TopBar("Partie")
+        yield Banner()
+        with Horizontal(id="game-body"):
+            with Vertical(id="side"):
+                with Vertical(id="info-pane", classes="pane") as info:
+                    info.border_title = "Partie"
+                    yield Static("", id="info")
+                with Vertical(id="deadline-pane", classes="pane") as deadline:
+                    deadline.border_title = "Échéance du tour"
+                    yield Static("", id="deadline")
+            with Vertical(id="main"):
+                with Vertical(id="primer-pane", classes="pane") as primer:
+                    primer.border_title = "Amorce"
+                    yield Static("", id="primer")
+                with Vertical(id="write-pane", classes="pane") as write:
+                    write.border_title = "Ton texte"
+                    yield TextArea(id="draft", soft_wrap=True, show_line_numbers=False, tab_behavior="focus")
+                    yield Static("", id="counter")
+                    with Horizontal(classes="buttons"):
+                        yield Button("Envoyer", id="send", variant="primary")
+                with Vertical(id="story-pane", classes="pane") as story:
+                    story.border_title = "L'histoire"
+                    yield Static("", id="story")
+        with Horizontal(id="game-actions", classes="buttons"):
+            yield Button("Retour", id="back")
+        yield Footer(show_command_palette=False)
+
+    def on_mount(self) -> None:
+        self.ready = True
+        self.query_one("#draft", TextArea).text = self.app.drafts.get(self.game_id, "")
+        self.set_interval(1.0, self._tick)
+        self.refresh_view()
+
+    # --- bindings that depend on where the focus is ---------------------------
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        in_text = isinstance(self.app.focused, TextArea)
+        if action == "leave_text":
+            return in_text
+        if action == "back":
+            return not in_text
+        view = self.app.games.get(self.game_id)
+        if action == "send":
+            return bool(view and view.my_turn)
+        if action == "leave":
+            return bool(view and view.status == GameStatus.RUNNING)
+        return True
+
+    def _place_focus(self) -> None:
+        view = self.app.games.get(self.game_id)
+        if view is not None and view.my_turn and view.status == GameStatus.RUNNING:
+            self.query_one("#draft", TextArea).focus()
+        else:
+            self.query_one("#back", Button).focus()
+
+    def _close(self) -> None:
+        if self.app.screen is self:
+            self.app.pop_screen()
+
+    # --- drawing ----------------------------------------------------------------
+
+    def _tick(self) -> None:
+        view = self.app.games.get(self.game_id)
+        if view is not None and view.status == GameStatus.RUNNING:
+            self.query_one("#deadline", Static).update(
+                format_remaining(view.deadline, self.app.clock())
+            )
+
+    def refresh_view(self) -> None:
+        app = self.app
+        view = app.games.get(self.game_id)
+        if view is None:
+            self._close()  # left the game
+            return
+        if view.status == GameStatus.WAITING and app.screen is self:
+            app.switch_screen(WaitingScreen(self.game_id))
+            return
+        self.query_one(TopBar).refresh_bar()
+        self.query_one(Banner).refresh_banner()
+        running = view.status == GameStatus.RUNNING
+        finished = view.status == GameStatus.FINISHED
+
+        info = Text()
+        info.append("Thème\n", style=colors.muted)
+        info.append(f"{view.settings.theme or 'aucun'}\n\n")
+        for i, p in enumerate(view.players):
+            marker = "▶ " if running and p == view.current_player else "  "
+            info.append(marker, style=colors.accent)
+            info.append(p, style="bold" if p == app.pseudo else "")
+            if p == app.pseudo:
+                info.append(" (toi)", style=colors.muted)
+            if i < len(view.players) - 1:
+                info.append("\n")
+        self.query_one("#info", Static).update(info)
+
+        self.query_one("#deadline-pane").display = running
+        if running:
+            self._tick()
+
+        primer_pane = self.query_one("#primer-pane")
+        write_pane = self.query_one("#write-pane")
+        story_pane = self.query_one("#story-pane")
+        primer_pane.display = not finished
+        write_pane.display = running and view.my_turn
+        story_pane.display = finished
+        if running and view.my_turn:
+            primer_pane.border_title = "Amorce"
+            self.query_one("#primer", Static).update(primer_help(view))
+            self._update_counter(view)
+            if not self._was_my_turn and app.screen is self:
+                self.query_one("#draft", TextArea).focus()
+        elif running:
+            primer_pane.border_title = "En cours"
+            where, ahead = turn_position(view, app.pseudo or "")
+            if where == "later":
+                tail = "Tu es le prochain." if ahead == 2 else f"Ton tour viendra après {ahead - 2} autre(s) joueur(s)."
+            else:
+                tail = "Ton tour est passé : tu verras l'histoire complète à la fin."
+            self.query_one("#primer", Static).update(f"C'est le tour de {view.current_player}.\n{tail}")
+        elif finished:
+            self.query_one("#story", Static).update(self._story_text(view))
+        self._was_my_turn = bool(running and view.my_turn)
+        self.refresh_bindings()  # the footer follows the state (send, leave...)
+        focused = app.focused
+        if app.screen is self and (focused is None or not focused.display or not focused.visible):
+            self._place_focus()
+        elif app.screen is self and isinstance(focused, TextArea) and not write_pane.display:
+            self._place_focus()
+
+    @staticmethod
+    def _story_text(view) -> Text:
+        text = Text()
+        for part in view.story or []:
+            text.append(f"{part.author}\n", style=f"bold {colors.secondary}")
+            text.append(f"{part.text}\n\n")
+        if not view.story:
+            text.append("Personne n'a écrit.", style=colors.muted)
+        if view.skipped:
+            text.append("Tours sautés : " + ", ".join(view.skipped), style=colors.muted)
+        return text
+
+    def _update_counter(self, view) -> None:
+        draft = self.query_one("#draft", TextArea).text
+        status = word_status(draft, view.settings)
+        color = colors.success if status.ok else (colors.muted if not draft.strip() else colors.error)
+        self.query_one("#counter", Static).update(Text(status.text, style=color))
+        self.query_one("#send", Button).disabled = not status.ok
+
+    # --- actions ----------------------------------------------------------------
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        self.app.drafts[self.game_id] = event.text_area.text
+        view = self.app.games.get(self.game_id)
+        if view is not None and view.my_turn:
+            self._update_counter(view)
+
+    async def action_send(self) -> None:
+        view = self.app.games.get(self.game_id)
+        if view is None or not view.my_turn:
+            return
+        draft = self.query_one("#draft", TextArea).text
+        status = word_status(draft, view.settings)
+        if not status.ok:
+            self.app.notify(status.text, severity="warning")
+            return
+        self.app.submitted.add(self.game_id)
+        await self.app.send(SubmitText(game_id=self.game_id, text=draft.strip()))
+
+    def action_leave_text(self) -> None:
+        self.query_one("#send", Button).focus()
+
+    def action_back(self) -> None:
+        self._close()
+
+    async def action_leave(self) -> None:
+        if not self._leave_armed:
+            self._leave_armed = True
+            self.app.notify("Ctrl+O encore une fois pour quitter la partie.", severity="warning")
+            self.set_timer(5, lambda: setattr(self, "_leave_armed", False))
+            return
+        self._leave_armed = False
+        await self.app.send(LeaveGame(game_id=self.game_id))
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "send":
+            await self.action_send()
         else:
             self._close()

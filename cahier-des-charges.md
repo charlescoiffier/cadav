@@ -1,4 +1,4 @@
-# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 9)
+# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 10)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -173,10 +173,10 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Barre du haut (`TopBar`) sur chaque écran sauf la connexion ; pied de page Textual sans palette de commandes.
 - Lobby : deux panneaux (« Mes parties » avec pastilles `À TOI`, `ATTENTE`, `EN COURS`, `TERMINÉE` ; « Parties publiques ») et un panneau « Rejoindre avec un code ». Raccourcis : `Ctrl+N` nouvelle partie, `Ctrl+K` saisir un code, `Entrée` ouvrir ou rejoindre la ligne choisie, `Ctrl+Q` quitter. Au retour d'un autre écran, le focus revient sur la liste pour que les raccourcis fonctionnent.
 - Création : deux panneaux (« Partie », « Écriture »). `Ctrl+S` crée, `Échap` annule.
-- Salle d'attente : code, joueurs (♛ = hôte), réglages, prochaine étape. `Ctrl+L` lance (hôte, 3 joueurs minimum), `Ctrl+X` quitte la partie, `Échap` revient au lobby.
+- Salle d'attente : code, joueurs (♛ = hôte), réglages, prochaine étape. `Ctrl+L` lance (hôte, 3 joueurs minimum), `Ctrl+O` quitte la partie, `Échap` revient au lobby.
 - Les captures du README se régénèrent avec `scripts/screenshots.py` (serveur jetable + pilote de test Textual + `rsvg-convert`).
 
-## 20. Navigation clavier, installation (révision 9)
+## 20. Navigation clavier, installation (révision 10)
 - `cadav/client/widgets.py` : `NavInput` (champ à deux modes), `NavSelect` (choix : seuls `Entrée` et `Espace` l'ouvrent, `↑` `↓` ne l'ouvrent plus) et `NavOptionList` (liste qui passe le focus à l'élément voisin à ses extrémités, `Espace` comme `Entrée`). Les touches de navigation globales (`↑` `←` précédent, `↓` `→` suivant, `Tab`) sont des liaisons de l'application ; un menu ouvert ou un champ en cours de modification les reçoit en premier.
 - Hors modification, `NavInput` ne consomme ni les flèches ni `Espace` (voir §21 pour la saisie directe). En modification, `↑` et `↓` sont sans effet, `←` `→` déplacent le curseur, un clic entre dans le champ, et perdre le focus valide la saisie.
 - `Entrée` dans un champ ne fait que valider le champ (sauf le champ « code » du lobby, qui rejoint la partie). Sur l'écran de connexion, on valide la connexion avec le bouton « Entrer ».
@@ -184,9 +184,20 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Le paquet Python s'appelle `cadav/` (renommé depuis `cadavre/`). La commande est installable globalement : `uv tool install --editable .` (ou `pipx install --editable .`) place `cadav` dans `~/.local/bin`.
 - Données du serveur par défaut : `$XDG_DATA_HOME/cadav` ou `~/.local/share/cadav` (et non plus `./data`), pour que `cadav serve` se comporte de la même façon quel que soit le dossier courant.
 
-## 21. Palette, focus, saisie directe (révision 9)
+## 21. Palette, focus, saisie directe (révision 10)
 - Palette par défaut : « galaxy », le thème de base de Posting (fond `#0F0F1F`, surfaces `#1E1E3F` et `#2D2B55`, primaire `#C45AFF`, secondaire `#a684e8`) avec l'accent **orange** `#FF8C32`. Option : `solarized-dark` (accent orange Solarized `#cb4b16`). Choix par `cadav play --theme …` ou par la clé `theme` de `config.json`.
 - La feuille de style n'emploie que des variables de thème (`$accent`, `$cadav-focus`, `$cadav-editing`…) ; les styles Rich des écrans lisent la palette courante (`theme.colors`).
 - Focus : l'élément qui a le focus est en vidéo inverse (fond orange, texte de la couleur du fond, rapport de contraste d'environ 7:1 avec « galaxy ») ; son panneau a une bordure épaisse orange et un titre blanc ; la ligne sélectionnée d'une liste sans focus est en violet foncé ; un champ en cours de modification est blanc, curseur inversé. Le second texte des lignes de liste n'est jamais grisé, pour rester lisible en vidéo inverse.
-- Raccourcis : Lobby `Ctrl+N` (nouvelle partie), `Ctrl+K` (code) ; Création `Ctrl+S` ; Salle d'attente `Ctrl+L` (lancer), `Ctrl+X` (quitter la partie) ; partout `Ctrl+Q`, `Échap` pour revenir. Les lettres sont donc toujours du texte.
+- Raccourcis : Lobby `Ctrl+N` (nouvelle partie), `Ctrl+K` (code) ; Création `Ctrl+S` ; Salle d'attente `Ctrl+L` (lancer), `Ctrl+O` (quitter la partie) ; partout `Ctrl+Q`, `Échap` pour revenir. Les lettres sont donc toujours du texte.
 - Saisie directe : sur un `NavInput` qui n'est pas en modification, un caractère imprimable (sauf Espace) entre en modification, vide le champ et s'y inscrit ; `Échap` rétablit la valeur d'avant. Sur un `NavSelect` fermé, taper une lettre ou un chiffre (accumulés pendant 1 s) choisit la première option correspondante. Dans le menu ouvert, `Espace` valide comme `Entrée`.
+
+## 22. Écran de partie et reprise (jalon 4, révision 10)
+- `GameScreen` (dans `cadav/client/screens.py`) : panneau « Partie » (thème, ordre des joueurs, ▶ devant celui qui écrit), « Échéance du tour » (compte à rebours rafraîchi chaque seconde), « Amorce », « Ton texte » (zone multiligne, compteur de mots en direct, bouton Envoyer) et, une fois la partie terminée, « L'histoire » (chaque contribution attribuée, tours sautés listés). La copie et l'export restent au jalon 5.
+- Ce n'est pas ton tour : le panneau « En cours » dit qui écrit et où l'on se trouve dans la file (« Tu es le prochain », « Ton tour viendra après N autre(s) joueur(s) », ou « Ton tour est passé » sans distinguer un tour joué d'un tour sauté, ce que le serveur ne révèle pas avant la fin).
+- C'est ton tour : le focus va dans la zone de saisie. Le texte envoyé est celui de la zone sans espaces autour. Le compteur applique les limites de la partie (minimum, maximum, 2000 caractères) et le bouton est grisé hors limites ; `Ctrl+S` prévient au lieu d'envoyer.
+- Brouillons : le texte non envoyé est conservé par partie tant que le client tourne (changer d'écran ou de partie ne le perd pas) ; il est effacé quand le serveur a pris le texte, et conservé si le serveur le refuse. Il n'est pas écrit sur disque.
+- `Échap` quitte d'abord la zone de saisie (le focus passe sur Envoyer), puis revient au lobby. Quitter une partie en cours : `Ctrl+O`, à presser deux fois à moins de 5 secondes.
+- Navigation entre parties : `Ctrl+T` va à la partie qui attend ton texte (puis la suivante, en boucle), `Ctrl+G` passe à ta partie suivante (en attente ou en cours). Disponibles depuis le lobby, la salle d'attente et l'écran de partie, pas depuis le formulaire de création.
+- Bandeau discret (une ligne sous la barre du haut, 12 secondes) pour ce qui se passe dans les autres parties : « À toi dans « thème » », « le tour de X est passé », « est terminée », « est lancée ». Rien n'est affiché pour la partie que l'on regarde.
+- Reprise : à la connexion, `my_games` redonne chaque partie avec sa projection (amorce comprise si c'est ton tour) ; le lobby marque `À TOI`, et `Ctrl+T` ouvre la partie. Rejoindre une partie qui démarre aussitôt (dernière place) ouvre directement l'écran de partie ; la salle d'attente se transforme en écran de partie au lancement.
+- Raccourci de départ : `Ctrl+O` (et non `Ctrl+X`, que la zone de saisie utilise pour couper).

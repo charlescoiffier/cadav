@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from datetime import datetime
 
 from pydantic import ValidationError
 
+from cadav.game import count_words
 from cadav.protocol import (
     DEFAULT_PRIMER_WORDS,
+    MAX_CONTRIBUTION_CHARS,
     MAX_TURN_SECONDS,
     MIN_TURN_SECONDS,
     GameSettings,
@@ -140,3 +144,67 @@ def my_game_label(view: GameView) -> str:
     else:
         state = "terminée"
     return f"{'★ ' if view.my_turn else ''}{theme} — {state}"
+
+
+def format_remaining(deadline: datetime | None, now: datetime) -> str:
+    """Time left before a deadline, in French: ``2 j 3 h``, ``1 h 05``, ``4 min 05 s``, ``12 s``."""
+    if deadline is None:
+        return "—"
+    seconds = int((deadline - now).total_seconds())
+    if seconds <= 0:
+        return "échéance dépassée"
+    days, rest = divmod(seconds, 86400)
+    hours, rest = divmod(rest, 3600)
+    minutes, secs = divmod(rest, 60)
+    if days:
+        return f"{days} j {hours} h"
+    if hours:
+        return f"{hours} h {minutes:02d}"
+    if minutes:
+        return f"{minutes} min {secs:02d} s"
+    return f"{secs} s"
+
+
+@dataclass(frozen=True)
+class WordStatus:
+    count: int
+    ok: bool  # can be sent
+    text: str  # French, for the counter under the text area
+
+
+def word_status(text: str, settings: GameSettings) -> WordStatus:
+    """Live feedback on a draft: its word count against the limits of the game."""
+    count = count_words(text)
+    lo, hi = settings.min_words, settings.max_words
+    unit = "mot" if count == 1 else "mots"
+    limits = words_text(settings)
+    suffix = "" if limits == "libre" else f" ({limits})"
+    if not text.strip():
+        return WordStatus(0, False, f"0 mot{suffix}")
+    if len(text.strip()) > MAX_CONTRIBUTION_CHARS:
+        return WordStatus(count, False, f"{count} {unit} : texte trop long (max {MAX_CONTRIBUTION_CHARS} caractères)")
+    if lo is not None and count < lo:
+        return WordStatus(count, False, f"{count} {unit} : encore {lo - count} pour atteindre le minimum")
+    if hi is not None and count > hi:
+        return WordStatus(count, False, f"{count} {unit} : {count - hi} de trop")
+    return WordStatus(count, True, f"{count} {unit}{suffix}")
+
+
+def primer_help(view: GameView) -> str:
+    """What to show in the primer pane of a player whose turn it is."""
+    if view.primer:
+        return view.primer
+    if view.settings.primer_mode is PrimerMode.NONE:
+        return "Pas d'amorce dans cette partie : écris ce que tu veux."
+    return "Page blanche : tu ouvres l'histoire."
+
+
+def turn_position(view: GameView, me: str) -> tuple[str, int]:
+    """Where ``me`` stands in a running game: ``("now", 0)``, ``("later", n)`` where ``n`` is their rank
+    in the queue (the current writer is 1, the next one 2...), or ``("past", 0)`` (already played or skipped)."""
+    if view.my_turn:
+        return "now", 0
+    if me not in view.players or view.current_player not in view.players:
+        return "past", 0
+    ahead = view.players.index(me) - view.players.index(view.current_player)
+    return ("later", ahead + 1) if ahead > 0 else ("past", 0)

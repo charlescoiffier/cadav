@@ -46,6 +46,17 @@ def save(app, name: str) -> None:
     subprocess.run(["rsvg-convert", "-w", "1100", str(svg), "-o", str(OUT / f"{name}.png")], check=True)
 
 
+class OrderRng(random.Random):
+    """A rng whose shuffle puts the players in a chosen order (for a predictable screenshot)."""
+
+    def __init__(self, order):
+        super().__init__(1)
+        self.order = list(order)
+
+    def shuffle(self, x):
+        x.sort(key=self.order.index)
+
+
 async def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     server = Server(Storage(tmp / "data"), rng=random.Random(11))
@@ -77,14 +88,39 @@ async def main() -> None:
             app.screen.query_one("#max-words").value = "60"
             await pilot.pause(0.2)
             save(app, "creation")
+            app.screen.query_one("#theme").value = "Le phare dans le brouillard"
             await pilot.press("ctrl+s")
             await pilot.pause(0.6)
-            code = next(g.code for g in server.games.values() if g.host == "ana")
+            game = next(g for g in server.games.values() if g.host == "ana")
+            players = {}
             for name in ("dan", "eve"):
-                _, send, until = await player(url, name)
-                await send("join_game", code=code)
+                players[name] = await player(url, name)
+                await players[name][1]("join_game", code=game.code)
             await pilot.pause(0.6)
             save(app, "salle-attente")
+
+            # the fourth player fills the room: the game starts, dan writes first
+            server.rng = OrderRng(["dan", "ana", "eve", "fay"])
+            players["fay"] = await player(url, "fay")
+            await players["fay"][1]("join_game", code=game.code)
+            await pilot.pause(0.6)
+            await players["dan"][1](
+                "submit_text", game_id=game.id,
+                text="Le brouillard avait tout avalé, même le phare. Personne n'osait plus parler de la tempête.",
+            )
+            await pilot.pause(0.6)
+            draft = app.screen.query_one("#draft")
+            draft.text = "On entendait pourtant, très loin, une cloche qui ne sonnait pas à l'heure."
+            await pilot.pause(0.3)
+            save(app, "partie")
+
+            await pilot.press("ctrl+s")
+            await pilot.pause(0.5)
+            await players["eve"][1]("submit_text", game_id=game.id, text="Eve ouvrit la porte du phare et trouva la lampe éteinte.")
+            await pilot.pause(0.4)
+            await players["fay"][1]("submit_text", game_id=game.id, text="Alors le brouillard se leva d'un seul coup, comme un rideau.")
+            await pilot.pause(0.8)
+            save(app, "histoire")
     await server.close()
 
 

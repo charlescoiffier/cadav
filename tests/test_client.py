@@ -1,5 +1,6 @@
 """Client UI tests: the Textual app driven by Pilot against a real server."""
 
+import asyncio
 import json
 import random
 import time
@@ -8,11 +9,11 @@ from datetime import timedelta
 import pytest
 import websockets
 from helpers import Client
-from textual.widgets import Button, Input, OptionList, Select, Static
+from textual.widgets import Button, Input, OptionList, Select, Static, TextArea
 
 from cadav.client.app import CadavApp
 from cadav.client.config import Config
-from cadav.client.screens import CreateScreen, LobbyScreen, LoginScreen, WaitingScreen
+from cadav.client.screens import Banner, CreateScreen, GameScreen, LobbyScreen, LoginScreen, WaitingScreen
 from cadav.server import Server
 from cadav.storage import Storage
 
@@ -258,10 +259,8 @@ async def test_host_starts_game_and_lobby_shows_it(backend):
             await c.send("join_game", code=code)
         await until(pilot, lambda: not app.screen.query_one("#start", Button).disabled)
         app.screen.query_one("#start", Button).press()
-        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
-        await until(pilot, lambda: any("lancée" in n.message for n in app._notifications))
-        label = str(app.screen.query_one("#my-games", OptionList).options[0].prompt)
-        assert "à toi" in label or "tour de" in label
+        await until(pilot, lambda: isinstance(app.screen, GameScreen))
+        assert next(iter(backend.server.games.values())).status == "running"
 
 
 async def test_leave_game_returns_to_lobby(backend):
@@ -348,7 +347,7 @@ async def test_create_and_start_with_the_keyboard(backend):
             await c.send("join_game", code=code)
         await until(pilot, lambda: "3/4" in app.screen.query_one("#players-pane").border_title)
         await pilot.press("ctrl+l")
-        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        await until(pilot, lambda: isinstance(app.screen, GameScreen))
         assert next(iter(backend.server.games.values())).status == "running"
 
 
@@ -383,7 +382,7 @@ async def test_leave_with_the_keyboard(backend):
         await until(pilot, lambda: isinstance(app.screen, CreateScreen))
         await pilot.press("ctrl+s")
         await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
-        await pilot.press("ctrl+x")
+        await pilot.press("ctrl+o")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         assert backend.server.games == {}
 
@@ -584,3 +583,264 @@ async def test_footer_shows_the_keys_of_the_current_mode(backend):
         await pilot.press("escape")
         shown = {k.binding.action for k in app.screen.active_bindings.values() if k.binding.show}
         assert "begin_edit" in shown and "commit_edit" not in shown
+
+
+# --- the game screen ---------------------------------------------------------
+
+
+class OrderRng(random.Random):
+    """A rng whose shuffle puts the players in a chosen order."""
+
+    def __init__(self, order):
+        super().__init__(1)
+        self.order = list(order)
+
+    def shuffle(self, x):
+        x.sort(key=self.order.index)
+
+
+async def start_three(backend, app, pilot, order, **settings):
+    """bob creates a public game, cleo joins, ana joins from the lobby and the game starts."""
+    backend.server.rng = OrderRng(order)
+    bob = await backend.script_client("bob")
+    cleo = await backend.script_client("cleo")
+    await bob.send("create_game", settings={**SETTINGS, **settings})
+    gid = (await bob.until("game_joined"))["game_id"]
+    await cleo.send("join_game", game_id=gid)
+    await cleo.until("game_joined")
+    await until(pilot, lambda: option_ids(app, "#public-games") == [gid])
+    app.screen.query_one("#public-games", OptionList).focus()
+    await pilot.press("enter")
+    await until(pilot, lambda: isinstance(app.screen, GameScreen))
+    return {"bob": bob, "cleo": cleo}, gid
+
+
+async def say(backend, clients, gid, name, text):
+    """A script player writes; returns once the server has taken the text."""
+    game = backend.server.games[gid]
+    before = len(game.contributions)
+    await clients[name].send("submit_text", game_id=gid, text=text)
+    for _ in range(200):
+        if len(game.contributions) > before:
+            return
+        await asyncio.sleep(0.02)
+    raise AssertionError("the server did not take the text")
+
+
+async def ready(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    return backend.app()
+
+
+async def test_my_turn_shows_blank_page_draft_and_counter(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        clients, gid = await start_three(backend, app, pilot, ["ana", "bob", "cleo"], theme="La mer")
+        draft = app.screen.query_one("#draft", TextArea)
+        await until(pilot, lambda: app.focused is draft)  # the cursor is where the writing happens
+        assert "Page blanche" in text(app, "#primer")
+        assert "▶ ana" in text(app, "#info") and "La mer" in text(app, "#info")
+        assert "0 mot" in text(app, "#counter") and app.screen.query_one("#send", Button).disabled
+        await pilot.press(*"Il pleut")
+        assert draft.text == "Il pleut" and "2 mots" in text(app, "#counter")
+        assert not app.screen.query_one("#send", Button).disabled
+        draft.text = "Il pleut. La nuit tombe."
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: len(next(iter(backend.server.games.values())).contributions) == 1)
+        game = next(iter(backend.server.games.values()))
+        assert game.contributions[0].text == "Il pleut. La nuit tombe." and game.primer == "La nuit tombe."
+        await until(pilot, lambda: "C'est le tour de bob" in text(app, "#primer"))
+        assert not app.screen.query_one("#write-pane").display
+        assert "Ton tour est passé" in text(app, "#primer")
+        assert gid not in app.drafts  # sent: the draft is gone
+
+
+async def test_other_players_turn_then_my_turn_with_the_primer(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        clients, gid = await start_three(backend, app, pilot, ["bob", "ana", "cleo"])
+        assert "C'est le tour de bob" in text(app, "#primer") and "Tu es le prochain" in text(app, "#primer")
+        assert not app.screen.query_one("#write-pane").display
+        await say(backend, clients, gid, "bob", "Début secret. Fin de bob.")
+        draft = app.screen.query_one("#draft", TextArea)
+        await until(pilot, lambda: app.screen.query_one("#write-pane").display)
+        assert text(app, "#primer") == "Fin de bob."  # only the primer, never the whole text
+        assert "secret" not in text(app, "#primer") + text(app, "#info")
+        await until(pilot, lambda: app.focused is draft)
+
+
+async def test_third_player_knows_how_many_turns_come_first(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await start_three(backend, app, pilot, ["bob", "cleo", "ana"])
+        assert "après 1 autre" in text(app, "#primer")
+
+
+async def test_word_limits_block_sending_with_feedback(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await start_three(backend, app, pilot, ["ana", "bob", "cleo"], min_words=3, max_words=5)
+        draft = app.screen.query_one("#draft", TextArea)
+        draft.text = "un deux"
+        await pilot.pause()
+        assert "encore 1" in text(app, "#counter") and app.screen.query_one("#send", Button).disabled
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: any("encore 1" in n.message for n in app._notifications))
+        assert next(iter(backend.server.games.values())).contributions == []
+        draft.text = "un deux trois quatre cinq six"
+        await pilot.pause()
+        assert "de trop" in text(app, "#counter")
+        draft.text = "un deux trois"
+        await pilot.pause()
+        assert "(3 à 5 mots)" in text(app, "#counter") and not app.screen.query_one("#send", Button).disabled
+
+
+async def test_escape_leaves_the_text_area_first_then_the_screen(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await start_three(backend, app, pilot, ["ana", "bob", "cleo"])
+        draft = app.screen.query_one("#draft", TextArea)
+        await until(pilot, lambda: app.focused is draft)
+        await pilot.press(*"brouillon", "escape")
+        assert focused_id(app) == "send" and isinstance(app.screen, GameScreen)
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+
+
+async def test_draft_survives_leaving_and_coming_back(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        clients, gid = await start_three(backend, app, pilot, ["ana", "bob", "cleo"])
+        draft = app.screen.query_one("#draft", TextArea)
+        await until(pilot, lambda: app.focused is draft)
+        await pilot.press(*"mon brouillon", "escape", "escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        label = str(app.screen.query_one("#my-games", OptionList).options[0].prompt)
+        assert "À TOI" in label
+        app.screen.query_one("#my-games", OptionList).focus()
+        await pilot.press("enter")
+        await until(pilot, lambda: isinstance(app.screen, GameScreen))
+        assert app.screen.query_one("#draft", TextArea).text == "mon brouillon"
+
+
+async def test_resuming_after_a_restart_of_the_client(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        clients, gid = await start_three(backend, app, pilot, ["bob", "ana", "cleo"])
+        await say(backend, clients, gid, "bob", "Avant. Le primer repris.")
+    app2 = backend.app()  # the client is closed and started again
+    async with app2.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app2)
+        await until(pilot, lambda: option_ids(app2, "#my-games") == [gid])
+        assert "À TOI" in str(app2.screen.query_one("#my-games", OptionList).options[0].prompt)
+        await pilot.press("ctrl+t")  # jump to the game that waits for me
+        await until(pilot, lambda: isinstance(app2.screen, GameScreen))
+        assert text(app2, "#primer") == "Le primer repris."
+
+
+async def test_banner_about_another_game_and_shortcuts_to_reach_it(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        clients, gid = await start_three(backend, app, pilot, ["bob", "ana", "cleo"], theme="Premier")
+        await pilot.press("escape")  # back to the lobby, the game goes on
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        await say(backend, clients, gid, "bob", "Un début. Une fin.")
+        banner = app.screen.query_one(Banner)
+        await until(pilot, lambda: banner.display and "À toi dans « Premier »" in str(banner.render()))
+        await pilot.press("ctrl+t")
+        await until(pilot, lambda: isinstance(app.screen, GameScreen))
+        assert app.screen.game_id == gid
+
+
+async def test_ctrl_g_cycles_through_my_games(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        clients, gid = await start_three(backend, app, pilot, ["bob", "ana", "cleo"], theme="Un")
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
+        second = next(i for i in app.games if i != gid)
+        await pilot.press("ctrl+g")  # waiting room -> the running game
+        await until(pilot, lambda: isinstance(app.screen, GameScreen) and app.screen.game_id == gid)
+        await pilot.press("ctrl+g")  # and back
+        await until(pilot, lambda: isinstance(app.screen, WaitingScreen) and app.screen.game_id == second)
+
+
+async def test_waiting_room_turns_into_the_game_screen_when_the_game_starts(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        backend.server.rng = OrderRng(["bob", "ana", "cleo"])
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        app.screen.query_one("#players", Select).value = 3
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
+        code = next(iter(backend.server.games.values())).code
+        for name in ("bob", "cleo"):
+            c = await backend.script_client(name)
+            await c.send("join_game", code=code)
+        await until(pilot, lambda: isinstance(app.screen, GameScreen))  # auto-start when full
+        assert "C'est le tour de bob" in text(app, "#primer")
+
+
+async def test_countdown_follows_the_clock(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await start_three(backend, app, pilot, ["ana", "bob", "cleo"])
+        deadline = next(iter(backend.server.games.values())).deadline
+        app.clock = lambda: deadline - timedelta(seconds=90)
+        await until(pilot, lambda: text(app, "#deadline") == "1 min 30 s", timeout=3)
+        app.clock = lambda: deadline - timedelta(hours=3, minutes=5)
+        await until(pilot, lambda: text(app, "#deadline") == "3 h 05", timeout=3)
+        app.clock = lambda: deadline + timedelta(seconds=1)
+        await until(pilot, lambda: text(app, "#deadline") == "échéance dépassée", timeout=3)
+
+
+async def test_skipped_turn_and_finished_game_show_the_story(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        clients, gid = await start_three(backend, app, pilot, ["bob", "cleo", "ana"])
+        game = next(iter(backend.server.games.values()))
+        await say(backend, clients, gid, "bob", "Le début. Presque fini.")
+        game.deadline -= timedelta(days=1)  # cleo is too slow
+        await backend.server.expire(gid)
+        await until(pilot, lambda: app.screen.query_one("#write-pane").display)
+        assert text(app, "#primer") == "Presque fini."  # same primer after a skip
+        app.screen.query_one("#draft", TextArea).text = "La fin de ana."
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: app.screen.query_one("#story-pane").display)
+        story = text(app, "#story")
+        assert "bob" in story and "Le début. Presque fini." in story and "La fin de ana." in story
+        assert "Tours sautés : cleo" in story
+        assert not app.screen.query_one("#write-pane").display and not app.screen.query_one("#deadline-pane").display
+
+
+async def test_leaving_a_running_game_needs_two_presses(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        clients, gid = await start_three(backend, app, pilot, ["bob", "ana", "cleo"])
+        await pilot.press("ctrl+o")
+        await until(pilot, lambda: any("encore une fois" in n.message for n in app._notifications))
+        assert "ana" not in backend.server.games[gid].left
+        await pilot.press("ctrl+o")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        assert "ana" in backend.server.games[gid].left

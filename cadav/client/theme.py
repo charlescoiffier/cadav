@@ -199,6 +199,14 @@ Button.-warning:focus { background: $cadav-focus; color: $cadav-on-color; }
 Button:disabled { opacity: 0.45; }
 .buttons { height: 1; margin-top: 1; }
 
+/* multi-line text */
+TextArea { border: none; background: $surface; color: $cadav-strong; padding: 0 1; }
+TextArea:focus { border: none; background: $surface; }
+TextArea > .text-area--cursor { background: $cadav-focus; color: $cadav-on-color; text-style: bold; }
+TextArea > .text-area--cursor-line { background: $cadav-highlight; }
+TextArea > .text-area--selection { background: $primary 50%; }
+TextArea > .text-area--placeholder { color: $cadav-muted; }
+
 .muted { color: $cadav-muted; }
 .error { color: $error; }
 """

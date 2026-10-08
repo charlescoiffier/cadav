@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
 from textual.app import App
@@ -11,7 +13,13 @@ from textual.widgets._select import SelectOverlay
 from cadav.client.config import Config, default_config_path, new_secret
 from cadav.client.connection import RETRY_DELAYS, Connection
 from cadav.client.theme import APP_CSS, DEFAULT_PALETTE, PALETTES, build_theme, use_palette
-from cadav.client.screens import CreateScreen, LobbyScreen, LoginScreen, WaitingScreen
+from cadav.client.screens import (
+    CreateScreen,
+    GameScreen,
+    LobbyScreen,
+    LoginScreen,
+    WaitingScreen,
+)
 from cadav.protocol import (
     Auth,
     AuthOk,
@@ -51,6 +59,8 @@ class CadavApp(App):
     ENABLE_COMMAND_PALETTE = False
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quitter"),
+        Binding("ctrl+t", "my_turn_game", "À toi"),
+        Binding("ctrl+g", "next_game", "Autre partie"),
         # Arrows and Tab move between elements; widgets that need the arrows
         # (lists, open menus, a field being edited) handle them first.
         Binding("tab", "focus_next", "Suivant"),
@@ -66,6 +76,7 @@ class CadavApp(App):
         url: str | None = None,
         theme: str | None = None,
         retry_delays: tuple[float, ...] = RETRY_DELAYS,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         super().__init__()
         self.config_path = config_path or default_config_path()
@@ -77,6 +88,11 @@ class CadavApp(App):
         if url:
             self.config.url = url
         self.retry_delays = retry_delays
+        self.clock = clock or (lambda: datetime.now(UTC))
+        self.drafts: dict[str, str] = {}  # unsent texts, per game
+        self.submitted: set[str] = set()  # games where a text was sent and not yet acknowledged
+        self.banner = ""
+        self._banner_timer = None
         self.games: dict[str, GameView] = {}
         self.lobby: list[LobbyEntry] = []
         self.pseudo: str | None = None
@@ -89,6 +105,9 @@ class CadavApp(App):
         # An open menu keeps the left and right arrows.
         if action in ("focus_next", "focus_previous") and isinstance(self.focused, SelectOverlay):
             return False
+        if action in ("my_turn_game", "next_game"):
+            browsing = isinstance(self.screen, (LobbyScreen, WaitingScreen, GameScreen))
+            return browsing and bool(self.games)
         return super().check_action(action, parameters)
 
     # --- startup -----------------------------------------------------------
@@ -149,11 +168,13 @@ class CadavApp(App):
             self.lobby = msg.games
         elif isinstance(msg, GameJoined):
             self.games[msg.game_id] = msg.view
-            self._open_waiting(msg.game_id)
+            self._open_joined(msg.game_id)
         elif isinstance(msg, _EVENTS_WITH_VIEW):
+            self._note_event(msg, self.games.get(msg.game_id))
             self.games[msg.game_id] = msg.view
-            if isinstance(msg, GameStarted):
-                self.notify("La partie est lancée !")
+            if msg.game_id in self.submitted and not msg.view.my_turn:
+                self.submitted.discard(msg.game_id)  # the server took our text
+                self.drafts.pop(msg.game_id, None)
         elif isinstance(msg, ErrorMessage):
             self._on_error(msg)
         self.refresh_screens()
@@ -177,6 +198,8 @@ class CadavApp(App):
             self.games.pop(msg.game_id, None)
             self.notify(msg.message, severity="warning")
         else:
+            if msg.game_id:
+                self.submitted.discard(msg.game_id)
             self.notify(msg.message, severity="error")
 
     def show_login(self, error: str) -> None:
@@ -191,12 +214,78 @@ class CadavApp(App):
 
     # --- navigation --------------------------------------------------------
 
-    def _open_waiting(self, game_id: str) -> None:
+    def _open_joined(self, game_id: str) -> None:
+        """We just created or joined a game: show it (a waiting room, or the game if it started)."""
         if isinstance(self.screen, CreateScreen):
             self.pop_screen()
+        if isinstance(self.screen, LobbyScreen):
+            self.open_game(game_id)
+
+    def _viewing(self, game_id: str) -> bool:
+        screen = self.screen
+        return isinstance(screen, (GameScreen, WaitingScreen)) and screen.game_id == game_id
+
+    def open_game(self, game_id: str) -> None:
+        """Show a game: its waiting room, or the game screen (running or finished)."""
         view = self.games.get(game_id)
-        if view and view.status == GameStatus.WAITING and isinstance(self.screen, LobbyScreen):
-            self.push_screen(WaitingScreen(game_id))
+        if view is None or self._viewing(game_id):
+            return
+        screen = WaitingScreen(game_id) if view.status == GameStatus.WAITING else GameScreen(game_id)
+        if isinstance(self.screen, LobbyScreen):
+            self.push_screen(screen)
+        elif isinstance(self.screen, (GameScreen, WaitingScreen)):
+            self.switch_screen(screen)
+
+    def _cycle(self, ids: list[str]) -> str | None:
+        """The id after the game being viewed (wrapping), or the first one."""
+        current = next((i for i in ids if self._viewing(i)), None)
+        if not ids:
+            return None
+        if current is None:
+            return ids[0]
+        return ids[(ids.index(current) + 1) % len(ids)]
+
+    def action_next_game(self) -> None:
+        active = [g.game_id for g in self.games.values() if g.status != GameStatus.FINISHED]
+        target = self._cycle(active)
+        if target is None:
+            self.notify("Aucune autre partie en cours.")
+        else:
+            self.open_game(target)
+
+    def action_my_turn_game(self) -> None:
+        mine = [g.game_id for g in self.games.values() if g.status == GameStatus.RUNNING and g.my_turn]
+        target = self._cycle(mine)
+        if target is None:
+            self.notify("Aucune partie n'attend ton texte.")
+        else:
+            self.open_game(target)
+
+    # --- the discreet banner about the other games ------------------------------
+
+    def _note_event(self, msg, old: GameView | None) -> None:
+        if self._viewing(msg.game_id):
+            return
+        view = msg.view
+        name = f"« {view.settings.theme or 'Sans thème'} »"
+        if isinstance(msg, TurnStarted) and view.my_turn and not (old and old.my_turn):
+            self.set_banner(f"À toi dans {name} (Ctrl+T)")
+        elif isinstance(msg, TurnSkipped):
+            self.set_banner(f"{name} : le tour de {msg.pseudo} est passé")
+        elif isinstance(msg, GameFinished):
+            self.set_banner(f"{name} est terminée")
+        elif isinstance(msg, GameStarted):
+            self.set_banner(f"{name} est lancée")
+
+    def set_banner(self, text: str, seconds: float = 12.0) -> None:
+        self.banner = text
+        if self._banner_timer is not None:
+            self._banner_timer.stop()
+        self._banner_timer = self.set_timer(seconds, self._clear_banner)
+
+    def _clear_banner(self) -> None:
+        self.banner = ""
+        self.refresh_screens()
 
     def refresh_screens(self) -> None:
         for screen in list(self.screen_stack):
