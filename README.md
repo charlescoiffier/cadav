@@ -2,13 +2,14 @@
 
 [![CI](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml/badge.svg)](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-![Jalon](https://img.shields.io/badge/jalon-2%20sur%206-orange)
+![Jalon](https://img.shields.io/badge/jalon-3%20sur%206-orange)
 
 Un jeu de cadavre exquis textuel et multijoueur, à jouer dans le terminal. Un serveur central gère le lobby et toutes
 les parties ; chaque joueur écrit à son tour un morceau d'histoire sans voir ce qu'ont écrit les autres.
 
-> **État du projet : en construction.** Le protocole, la logique de jeu et le serveur sont écrits et testés (jalons 1 et 2).
-> L'interface et l'installation arrivent aux jalons suivants : il n'y a pas encore de client pour jouer.
+> **État du projet : en construction.** On peut déjà lancer un serveur, se connecter, créer ou rejoindre une partie et attendre les autres joueurs
+> (jalons 1 à 3). L'écran d'écriture, l'écran final et l'installation arrivent aux jalons suivants : on ne peut pas encore
+> écrire dans une partie.
 
 ---
 
@@ -44,12 +45,18 @@ rejoint une partie, puis on écrit quand vient son tour.
 |---|---|---|
 | 1 | Protocole et logique de jeu, avec leurs tests | Fait |
 | 2 | Stockage JSON et serveur WebSocket | Fait |
-| 3 | Client : lobby, création, salle d'attente | À faire |
+| 3 | Client : lobby, création, salle d'attente | Fait |
 | 4 | Écran de partie et reprise à la connexion | À faire |
 | 5 | Écran final, export (`.txt`, `.md`, presse-papiers), installation avec `pipx` | À faire |
 | 6 | Déploiement sur un serveur (WSS) et essais en conditions réelles | À faire |
 
 Le détail des règles et des décisions est dans le [cahier des charges](cahier-des-charges.md), qui fait référence.
+
+## Aperçu
+
+| Le lobby | La création d'une partie | La salle d'attente |
+|---|---|---|
+| ![Le lobby : mes parties, parties publiques, saisie d'un code](docs/images/lobby.png) | ![Le formulaire de création d'une partie](docs/images/creation.png) | ![La salle d'attente avec le code, les réglages et les joueurs](docs/images/salle-attente.png) |
 
 ---
 
@@ -71,7 +78,7 @@ Sans uv : `python -m venv .venv && .venv/bin/pip install -e '.[dev]'`.
 
 - Python 3.11+
 - Serveur : `asyncio` et [websockets](https://websockets.readthedocs.io/)
-- Client : [Textual](https://textual.textualize.io/) (jalon 3)
+- Client : [Textual](https://textual.textualize.io/)
 - Messages : [Pydantic](https://docs.pydantic.dev/), dans un module partagé client/serveur
 - Tests : `pytest` et `pytest-asyncio`
 - Distribution : paquet installable avec `pipx` (jalon 5)
@@ -84,21 +91,39 @@ cadavre/
   game.py          # logique pure : ordre, tours, amorce, échéances, view_for
   storage.py       # JSON atomique : comptes, parties en cours, archives
   server.py        # WebSocket : comptes, lobby, parties, échéances
+  client/
+    app.py         # application Textual : connexion, état, navigation
+    screens.py     # connexion, lobby, création, salle d'attente
+    connection.py  # WebSocket client avec reconnexion
+    config.py      # pseudo, secret et serveur, en local
+    logic.py       # formulaire et textes affichés (pur, testé seul)
 tests/
   test_protocol.py
   test_game.py
   test_storage.py
   test_server.py   # vrai serveur WebSocket et clients scriptés
+  test_client.py   # l'application Textual pilotée contre un vrai serveur
+  test_client_logic.py
 cahier-des-charges.md
 ```
 
-À venir : `client/` (écrans Textual) et `cli.py` (`cadavre play` et `cadavre serve`).
+À venir : l'écran de partie et l'écran final, puis `cli.py` (`cadavre play` et `cadavre serve`).
 
-Pour essayer le serveur seul (il n'y a pas encore de client) :
+## Essayer le jeu en local
+
+Dans un premier terminal, le serveur :
 
 ```bash
 .venv/bin/python -m cadavre.server --port 8765 --data-dir data
 ```
+
+Dans un ou plusieurs autres, un client (`--config` permet de simuler plusieurs joueurs sur la même machine) :
+
+```bash
+.venv/bin/python -m cadavre.client --url ws://localhost:8765 --config /tmp/joueur1.json
+```
+
+Sans `--config`, le pseudo et le secret sont gardés dans `~/.config/cadavre/config.json` (droits `0600`).
 
 ## Principes
 

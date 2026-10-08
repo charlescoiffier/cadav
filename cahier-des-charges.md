@@ -1,4 +1,4 @@
-# Cadavre exquis en terminal — Cahier des charges v1 (révision 4)
+# Cadavre exquis en terminal — Cahier des charges v1 (révision 5)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -117,7 +117,7 @@ cadavre/
   game.py          # logique pure (ordre, tours, amorce, view_for) ; heure et rng injectés
   server.py        # WebSocket, lobby, échéances
   storage.py       # JSON atomique (users, games, archive)
-  client/          # app Textual (écrans)
+  client/          # app Textual : app.py, screens.py, connection.py, config.py, logic.py
   cli.py           # cadavre play | cadavre serve
 tests/
 ```
@@ -126,7 +126,7 @@ La logique de jeu reste pure (sans réseau ni disque), donc testable seule.
 ## 14. Jalons
 1. `protocol.py` + `game.py` + tests (ordre, tours sautés, extraction d'amorce, projection, échéances). **Fait (53 tests).**
 2. `storage.py` + `server.py`, testés avec un client WebSocket de script. **Fait (84 tests au total).**
-3. Client Textual : lobby, création, salle d'attente.
+3. Client Textual : lobby, création, salle d'attente. **Fait (130 tests au total).**
 4. Écran de partie et reprise à la connexion.
 5. Écran final, export, packaging `pipx`.
 6. Déploiement sur VPS (WSS) et essais en conditions réelles.
@@ -151,3 +151,14 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Un `leave_game` ou `submit_text` d'un non-membre renvoie `not_in_game`, sans révéler si la partie existe.
 - Lancement du serveur pour essai : `.venv/bin/python -m cadavre.server --port 8765 --data-dir data` (options `--cert` et `--key` pour TLS). La commande `cadavre serve` arrive avec `cli.py` (jalon 5).
 - Dépendance ajoutée : `websockets` (prévue au §3).
+
+## 18. Décisions d'implémentation (jalon 3)
+- Le client est un paquet `cadavre/client/` : `logic.py` (analyse du formulaire et textes, sans Textual ni réseau, testé seul), `config.py`, `connection.py` (WebSocket), `screens.py` et `app.py`. Lancement provisoire : `.venv/bin/python -m cadavre.client [--url ws://…] [--config fichier]` ; la commande `cadavre play` arrive avec `cli.py` (jalon 5).
+- Configuration locale : `~/.config/cadavre/config.json` (ou `$XDG_CONFIG_HOME`, ou `$CADAVRE_CONFIG`), contenant `pseudo`, `secret` (64 caractères hexadécimaux) et `url` ; écrite de façon atomique avec les droits `0600`. URL par défaut : `ws://localhost:8765`.
+- Premier lancement : écran de connexion (pseudo + serveur) ; le secret est généré à ce moment et n'est enregistré qu'une fois l'inscription acceptée. Un secret refusé par le serveur ramène à l'écran de connexion ; saisir le même pseudo réutilise le secret stocké, un autre pseudo crée un nouveau compte.
+- Reconnexion automatique (1, 2, 4 puis 8 s) avec ré-authentification ; pas de reconnexion si la connexion a été remplacée par un autre terminal (code 4000) ou si le client est trop ancien (code 4001).
+- Le client ne garde que `games` (les projections reçues) et `lobby` ; chaque message serveur remplace la projection concernée, et l'écran affiché se met à jour.
+- Durée d'un tour : « Rapide » (2 min), « Tranquille » (24 h) ou saisie libre (`90s`, `10min`, `36h`, `2j` ; un nombre seul = minutes), entre 30 s et 72 h.
+- Salle d'attente : code, réglages, joueurs en direct ; « Lancer » réservé à l'hôte et grisé sous 3 joueurs ; « Retour » quitte l'écran sans quitter la partie, « Quitter la partie » envoie `leave_game`.
+- Une partie en cours s'affiche dans « Mes parties » (★ et « à toi ! » quand c'est le tour du joueur) ; son écran de jeu n'existe pas encore : un message le dit (jalon 4).
+- Dépendance ajoutée : `textual` (prévue au §3).
