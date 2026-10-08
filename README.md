@@ -34,9 +34,9 @@ rejoint une partie, puis on écrit quand vient son tour.
 4. **Écriture** : chacun écrit une fois. Le premier joueur a une page blanche ; les suivants ne voient que
    l'**amorce** laissée par le précédent (par défaut sa dernière phrase, mais ce peut être ses N derniers mots, ou rien).
 5. **Tour sauté** : si l'échéance passe, le joueur est sauté. Le suivant voit la même amorce et l'histoire compte une
-   contribution de moins. Un joueur qui quitte la partie est traité de la même façon.
+   contribution de moins. Un joueur qui quitte la partie est traité de la même façon, alors qu'un joueur simplement absent reste dans la partie et la verra à la fin.
 6. **Révélation** : après le dernier tour, l'histoire complète est affichée d'un coup, chaque morceau attribué à son
-   auteur. Si moins de 2 joueurs restent, la partie se termine et révèle ce qui existe.
+   auteur. Si plus personne n'a de tour à jouer (départs), la partie se termine et révèle ce qui existe.
 
 ## Ce qui est prévu
 

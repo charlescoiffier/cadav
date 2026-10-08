@@ -165,10 +165,6 @@ def _check_member(game: Game, pseudo: str) -> None:
         raise GameError("not_in_game", "Tu ne fais pas partie de cette partie.")
 
 
-def active_players(game: Game) -> list[str]:
-    return [p for p in game.players if p not in game.left]
-
-
 def current_player(game: Game) -> str | None:
     if game.status is not GameStatus.RUNNING or game.turn >= len(game.players):
         return None
@@ -249,8 +245,6 @@ def leave(game: Game, pseudo: str, now: datetime) -> list[Event]:
     was_current = current_player(game) == pseudo
     game.left.append(pseudo)
     events: list[Event] = [PlayerLeft(pseudo)]
-    if len(active_players(game)) < 2:
-        return events + _finish(game, now)
     if was_current:
         events += _advance(game, now)
     return events

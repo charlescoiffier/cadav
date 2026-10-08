@@ -42,7 +42,8 @@ Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. U
   - `N derniers mots` : N est le paramètre `primer_words` (1 à 100, défaut 12).
 - Tour sauté (échéance dépassée) ou joueur parti : la contribution n'existe pas, le joueur suivant reçoit la même amorce.
 - Après le dernier tour, la partie passe à `finished` et l'histoire complète est révélée à tous, avec chaque contribution attribuée à son auteur.
-- Si moins de 2 joueurs actifs restent en cours de partie, elle se termine et révèle ce qui existe. Est « actif » tout joueur qui n'a pas quitté la partie, même s'il a déjà écrit.
+- Quitter signifie uniquement l'action explicite `leave_game` : se déconnecter ou être absent n'est pas un départ (le joueur est simplement sauté à l'échéance de son tour, et garde l'accès à la partie).
+- La partie se termine et révèle ce qui existe dès qu'il ne reste plus aucun joueur ayant un tour à venir ou en cours. Un joueur qui a déjà écrit, ou qui a été sauté, ne maintient donc pas la partie en vie. Un unique joueur restant peut finir seul son tour.
 - Un joueur qui quitte une partie en cours garde l'attribution de ses contributions déjà écrites, perd l'accès à la partie, et son tour (à venir ou en cours) est passé sans compter comme « sauté ». Son départ pendant son tour passe la main avec la même amorce.
 - Chaque joueur a exactement un tour : un tour sauté n'est jamais rejoué. La partie finit après le tour du dernier joueur de l'ordre.
 
@@ -121,7 +122,7 @@ tests/
 La logique de jeu reste pure (sans réseau ni disque), donc testable seule.
 
 ## 14. Jalons
-1. `protocol.py` + `game.py` + tests (ordre, tours sautés, extraction d'amorce, projection, échéances). **Fait (50 tests).**
+1. `protocol.py` + `game.py` + tests (ordre, tours sautés, extraction d'amorce, projection, échéances). **Fait (53 tests).**
 2. `storage.py` + `server.py`, testés avec un client WebSocket de script.
 3. Client Textual : lobby, création, salle d'attente.
 4. Écran de partie et reprise à la connexion.

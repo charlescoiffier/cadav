@@ -261,7 +261,7 @@ def test_leave_future_player_is_skipped_later():
     assert g.current_player(game) == d
 
 
-def test_game_ends_when_fewer_than_two_active_players():
+def test_game_ends_when_nobody_is_left_to_write():
     game = running()
     a, b, c = game.players
     g.submit_text(game, a, "Texte conservé.", T0)
@@ -270,6 +270,36 @@ def test_game_ends_when_fewer_than_two_active_players():
     assert events[-1] == g.GameFinished()
     assert game.status is GameStatus.FINISHED
     assert [p.text for p in g.view_for(game, a).story] == ["Texte conservé."]
+
+
+def test_game_goes_on_with_a_single_remaining_writer():
+    game = running()
+    a, b, c = game.players
+    g.submit_text(game, a, "Un début. Une suite.", T0)
+    g.leave(game, b, T0)
+    assert game.status is GameStatus.RUNNING
+    assert g.view_for(game, c).primer == "Une suite."
+    g.submit_text(game, c, "Fin.", T0)
+    assert game.status is GameStatus.FINISHED
+
+
+def test_players_done_or_skipped_do_not_keep_the_game_alive():
+    game = running(players=("ana", "bob", "cleo", "dan"))
+    a, b, c, d = game.players
+    g.submit_text(game, a, "a.", T0)
+    g.expire_turn(game, T0 + timedelta(hours=1))  # b skipped, stays in the game
+    g.leave(game, d, T0 + timedelta(hours=1))
+    events = g.leave(game, c, T0 + timedelta(hours=1))
+    assert events[-1] == g.GameFinished()
+
+
+def test_absent_player_who_never_leaves_is_only_skipped():
+    game = running()
+    a, b, c = game.players
+    g.submit_text(game, a, "x.", T0)
+    g.expire_turn(game, T0 + timedelta(days=30))
+    assert b not in game.left
+    assert g.current_player(game) == c and game.status is GameStatus.RUNNING
 
 
 def test_departed_player_keeps_authorship_but_loses_view():
