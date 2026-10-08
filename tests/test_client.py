@@ -70,7 +70,7 @@ def text(app, selector):
 
 
 def option_ids(app, selector):
-    return [o.id for o in app.screen.query_one(selector, OptionList).options]
+    return [o.id for o in app.screen.query_one(selector, OptionList).options if o.id is not None]
 
 
 async def register_in_server(backend, pseudo="ana"):
@@ -93,7 +93,7 @@ async def test_first_launch_registers_and_saves_config(backend):
         await pilot.press("enter")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         await until(pilot, lambda: app.pseudo == "ana")
-        assert "Connecté — ana" in text(app, "#status")
+        assert "ana@" in text(app, "#status") and "Connecté" in text(app, "#status")
     saved = Config.load(backend.config_path)
     assert saved.pseudo == "ana" and len(saved.secret) == 64
     assert saved.secret not in json.dumps(list(backend.server.users.values()))
@@ -164,7 +164,7 @@ async def test_create_game_opens_waiting_room(backend):
         assert game.settings.theme == "Une enquête" and game.settings.desired_players == 5
         assert game.settings.visibility == "private" and game.settings.turn_seconds == 86400
         await until(pilot, lambda: game.code in text(app, "#code-line"))
-        assert "ana (hôte) (toi)" in text(app, "#players")
+        assert "♛ ana (toi)" in text(app, "#players")
         assert app.screen.query_one("#start", Button).disabled  # 1 player < 3
 
 
@@ -203,7 +203,7 @@ async def test_public_game_listed_and_joined_from_lobby(backend):
         await pilot.press("down", "enter")
         await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
         assert (await bob.until("player_joined"))["pseudo"] == "ana"
-        assert "bob (hôte)" in text(app, "#players")
+        assert "♛ bob" in text(app, "#players")
 
 
 async def test_join_private_game_with_code_and_see_new_players_live(backend):
@@ -223,7 +223,7 @@ async def test_join_private_game_with_code_and_see_new_players_live(backend):
         cleo = await backend.script_client("cleo")
         await cleo.send("join_game", code=code)
         await until(pilot, lambda: "cleo" in text(app, "#players"))
-        assert "(3/5)" in text(app, "#players")
+        assert "3/5" in app.screen.query_one("#players-pane").border_title
 
 
 async def test_bad_code_shows_error_toast(backend):
@@ -320,3 +320,65 @@ async def test_client_reconnects_after_server_side_drop(backend):
         await session.close(1011, "drop")  # not the 'replaced' code: the client must retry
         await until(pilot, lambda: backend.server.sessions.get("ana") not in (None, session))
         await until(pilot, lambda: app.status == "online" and app.pseudo == "ana")
+
+
+# --- keyboard-first ----------------------------------------------------------
+
+
+async def test_create_and_start_with_the_keyboard(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("n")  # the list has focus, so the shortcut is not typed into a field
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
+        await pilot.press("l")  # not enough players yet: nothing happens
+        await pilot.pause(0.2)
+        assert next(iter(backend.server.games.values())).status == "waiting"
+        code = next(iter(backend.server.games.values())).code
+        for name in ("bob", "cleo"):
+            c = await backend.script_client(name)
+            await c.send("join_game", code=code)
+        await until(pilot, lambda: "3/4" in app.screen.query_one("#players-pane").border_title)
+        await pilot.press("l")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        assert next(iter(backend.server.games.values())).status == "running"
+
+
+async def test_code_shortcut_focuses_the_code_field_and_enter_joins(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    bob = await backend.script_client("bob")
+    await bob.send("create_game", settings={**SETTINGS, "visibility": "private"})
+    code = (await bob.until("game_joined"))["view"]["code"]
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("c")
+        assert app.focused.id == "code"
+        await pilot.press(*code, "enter")
+        await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        await pilot.press("n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+
+
+async def test_leave_with_the_keyboard(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("ctrl+s")
+        await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
+        await pilot.press("x")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        assert backend.server.games == {}

@@ -9,6 +9,7 @@ from textual.binding import Binding
 
 from cadavre.client.config import Config, default_config_path, new_secret
 from cadavre.client.connection import RETRY_DELAYS, Connection
+from cadavre.client.theme import APP_CSS, CADAVRE_THEME
 from cadavre.client.screens import CreateScreen, LobbyScreen, LoginScreen, WaitingScreen
 from cadavre.protocol import (
     Auth,
@@ -45,20 +46,8 @@ _EVENTS_WITH_VIEW = (PlayerJoined, PlayerLeft, GameStarted, TurnStarted, TurnSki
 
 class CadavreApp(App):
     TITLE = "Cadavre exquis"
-    CSS = """
-    Screen { align: center top; }
-    .panel { width: 100%; max-width: 100; padding: 1 2; }
-    .title { text-style: bold; margin-bottom: 1; }
-    .error { color: $error; }
-    .muted { color: $text-muted; }
-    OptionList { height: auto; min-height: 3; max-height: 8; margin-bottom: 1; }
-    .row { height: auto; }
-    .row Input { width: 1fr; }
-    .row Button { width: auto; margin-left: 1; }
-    Button { margin-top: 1; }
-    Select, Input { margin-bottom: 1; }
-    #code-line, #settings, #players, #hint { margin-bottom: 1; }
-    """
+    CSS = APP_CSS
+    ENABLE_COMMAND_PALETTE = False
     BINDINGS = [Binding("ctrl+q", "quit", "Quitter")]
 
     def __init__(
@@ -68,6 +57,8 @@ class CadavreApp(App):
         retry_delays: tuple[float, ...] = RETRY_DELAYS,
     ) -> None:
         super().__init__()
+        self.register_theme(CADAVRE_THEME)
+        self.theme = CADAVRE_THEME.name
         self.config_path = config_path or default_config_path()
         self.config = Config.load(self.config_path)
         if url:

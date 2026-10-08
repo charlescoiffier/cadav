@@ -1,4 +1,4 @@
-# Cadavre exquis en terminal — Cahier des charges v1 (révision 5)
+# Cadavre exquis en terminal — Cahier des charges v1 (révision 6)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -96,6 +96,8 @@ Pas de message dédié à l'expiration d'une salle d'attente : le serveur envoie
 - Écriture atomique (fichier temporaire puis `os.replace`). Rechargement et replanification des échéances au démarrage.
 
 ## 11. Interface (Textual)
+Direction graphique : un vrai TUI, dans l'esprit de [Posting](https://posting.sh/) (réalisé avec Textual) : fond violet sombre, panneaux à bordure arrondie dont le titre est dans la bordure, champs de formulaire d'une ligne, pastilles de couleur pour les états, barre du haut (nom de l'écran, `pseudo@serveur ● état`), pied de page avec les raccourcis, pilotage au clavier d'abord (la souris reste possible). Pas de palette de commandes.
+
 - **Lobby** : section « Mes parties » (badge « À toi »), liste des parties publiques, saisie d'un code, bouton « Créer ».
 - **Création** : formulaire (visibilité, joueurs souhaités, échéance, thème, amorce, limites de mots).
 - **Salle d'attente** : joueurs en direct, code affiché, bouton « Lancer » pour l'hôte.
@@ -162,3 +164,11 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Salle d'attente : code, réglages, joueurs en direct ; « Lancer » réservé à l'hôte et grisé sous 3 joueurs ; « Retour » quitte l'écran sans quitter la partie, « Quitter la partie » envoie `leave_game`.
 - Une partie en cours s'affiche dans « Mes parties » (★ et « à toi ! » quand c'est le tour du joueur) ; son écran de jeu n'existe pas encore : un message le dit (jalon 4).
 - Dépendance ajoutée : `textual` (prévue au §3).
+
+## 19. Habillage et raccourcis (révision 6)
+- Thème Textual `cadavre` et feuille de style commune dans `cadavre/client/theme.py` (palette violette, pastilles `chip()`) ; styles propres à chaque écran dans la classe de l'écran (`CSS`, pas `DEFAULT_CSS`, qui serait écrasé par la feuille commune).
+- Barre du haut (`TopBar`) sur chaque écran sauf la connexion ; pied de page Textual sans palette de commandes.
+- Lobby : deux panneaux (« Mes parties » avec pastilles `À TOI`, `ATTENTE`, `EN COURS`, `TERMINÉE` ; « Parties publiques ») et un panneau « Rejoindre avec un code ». Raccourcis : `n` nouvelle partie, `c` saisir un code, `Entrée` ouvrir ou rejoindre la ligne choisie, `Ctrl+Q` quitter. Au retour d'un autre écran, le focus revient sur la liste pour que `n` et `c` fonctionnent.
+- Création : deux panneaux (« Partie », « Écriture »). `Ctrl+S` crée, `Échap` annule.
+- Salle d'attente : code, joueurs (♛ = hôte), réglages, prochaine étape. `l` lance (hôte, 3 joueurs minimum), `x` quitte la partie, `Échap` revient au lobby.
+- Les captures du README se régénèrent avec `scripts/screenshots.py` (serveur jetable + pilote de test Textual + `rsvg-convert`).

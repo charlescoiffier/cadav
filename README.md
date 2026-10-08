@@ -54,9 +54,28 @@ Le détail des règles et des décisions est dans le [cahier des charges](cahier
 
 ## Aperçu
 
-| Le lobby | La création d'une partie | La salle d'attente |
+Une interface de terminal pensée pour le clavier, dans l'esprit de [Posting](https://posting.sh/) (bâtie comme lui avec Textual).
+
+| Connexion | Le lobby |
+|---|---|
+| ![L'écran de connexion](docs/images/connexion.png) | ![Le lobby : mes parties, parties publiques, saisie d'un code](docs/images/lobby.png) |
+
+| La création d'une partie | La salle d'attente |
+|---|---|
+| ![Le formulaire de création d'une partie](docs/images/creation.png) | ![La salle d'attente avec le code, les réglages et les joueurs](docs/images/salle-attente.png) |
+
+### Raccourcis clavier
+
+| Écran | Touches | Effet |
 |---|---|---|
-| ![Le lobby : mes parties, parties publiques, saisie d'un code](docs/images/lobby.png) | ![Le formulaire de création d'une partie](docs/images/creation.png) | ![La salle d'attente avec le code, les réglages et les joueurs](docs/images/salle-attente.png) |
+| Lobby | `n` | Créer une partie |
+| | `c` | Saisir un code de partie privée (`Entrée` pour rejoindre) |
+| | `↑` `↓` `Entrée` | Choisir et ouvrir une partie, ou rejoindre une partie publique |
+| Création | `Ctrl+S` / `Échap` | Créer la partie / annuler |
+| Salle d'attente | `l` | Lancer la partie (hôte, au moins 3 joueurs) |
+| | `x` / `Échap` | Quitter la partie / revenir au lobby |
+| Partout | `Tab` | Champ suivant |
+| | `Ctrl+Q` | Quitter |
 
 ---
 
@@ -92,8 +111,9 @@ cadavre/
   storage.py       # JSON atomique : comptes, parties en cours, archives
   server.py        # WebSocket : comptes, lobby, parties, échéances
   client/
+    theme.py       # thème violet, feuille de style commune, pastilles
     app.py         # application Textual : connexion, état, navigation
-    screens.py     # connexion, lobby, création, salle d'attente
+    screens.py     # connexion, lobby, création, salle d'attente (et leurs raccourcis)
     connection.py  # WebSocket client avec reconnexion
     config.py      # pseudo, secret et serveur, en local
     logic.py       # formulaire et textes affichés (pur, testé seul)
@@ -105,6 +125,8 @@ tests/
   test_client.py   # l'application Textual pilotée contre un vrai serveur
   test_client_logic.py
 cahier-des-charges.md
+scripts/
+  screenshots.py   # régénère les captures du README
 ```
 
 À venir : l'écran de partie et l'écran final, puis `cli.py` (`cadavre play` et `cadavre serve`).
@@ -151,3 +173,12 @@ Le workflow [`ci.yml`](.github/workflows/ci.yml) lance les tests à chaque push 
 - Les tests de la logique pure s'écrivent avant le serveur.
 - Un jalon à la fois, dans l'ordre du cahier des charges ; on s'arrête à la fin de chacun pour validation.
 - Quand une décision change, le [cahier des charges](cahier-des-charges.md) est mis à jour dans la même session.
+
+## Images du README
+
+Les captures de `docs/images/` sont produites par le vrai client, piloté par le pilote de test de Textual contre un
+serveur jetable. Pour les régénérer (il faut `rsvg-convert`, par exemple avec `brew install librsvg`) :
+
+```bash
+.venv/bin/python scripts/screenshots.py
+```
