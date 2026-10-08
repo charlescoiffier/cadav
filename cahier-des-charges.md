@@ -1,4 +1,4 @@
-# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 7)
+# cadav, cadavre exquis en terminal — Cahier des charges v1 (révision 8)
 
 ## 1. Objectif
 Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. Un serveur central gère le lobby et toutes les parties. Les joueurs s'inscrivent (très léger), créent ou rejoignent des parties en attente de joueurs, et écrivent à tour de rôle une histoire commune.
@@ -21,7 +21,7 @@ Jeu de cadavre exquis textuel multijoueur, joué dans le terminal via une TUI. U
 | Identité | Pseudo + secret local, sans mot de passe |
 | Persistance | Fichiers JSON, écriture atomique, pas de base de données |
 | Parties par joueur | Plusieurs en parallèle, plafond de 5 parties actives par pseudo |
-| Nom | L'application s'appelle **cadav** (en minuscules) : titres, commandes (`cadav serve`, `cadav play`), dossier de configuration (`~/.config/cadav/`). Le paquet Python interne reste `cadav/` |
+| Nom | L'application s'appelle **cadav** (en minuscules) : titres, commandes (`cadav serve`, `cadav play`), paquet Python `cadav/`, dossier de configuration (`~/.config/cadav/`), données du serveur (`~/.local/share/cadav/`) |
 | Code | Un seul paquet : `cadav play` (client) et `cadav serve` (serveur) |
 | Langue | Interface en français pour l'instant |
 | Export | Copie dans le presse-papiers et export `.txt` / `.md` depuis l'écran final |
@@ -97,7 +97,9 @@ Pas de message dédié à l'expiration d'une salle d'attente : le serveur envoie
 - Écriture atomique (fichier temporaire puis `os.replace`). Rechargement et replanification des échéances au démarrage.
 
 ## 11. Interface (Textual)
-Direction graphique : un vrai TUI, dans l'esprit de [Posting](https://posting.sh/) (réalisé avec Textual) : fond violet sombre, panneaux à bordure arrondie dont le titre est dans la bordure, champs de formulaire d'une ligne, pastilles de couleur pour les états, barre du haut (nom de l'écran, `pseudo@serveur ● état`), pied de page avec les raccourcis, pilotage au clavier d'abord (la souris reste possible). Pas de palette de commandes.
+Direction graphique : un vrai TUI, dans l'esprit de [Posting](https://posting.sh/) (réalisé avec Textual) : palette Solarized dark (un thème clair pourra venir plus tard : toutes les couleurs sont dans une `Palette`), panneaux à bordure arrondie dont le titre est dans la bordure, champs de formulaire d'une ligne, pastilles de couleur pour les états, barre du haut (nom de l'écran, `pseudo@serveur ● état`), pied de page avec les raccourcis, pilotage au clavier d'abord (la souris reste possible). Pas de palette de commandes.
+
+Modèle de navigation (accessibilité) : les flèches et `Tab` / `Maj+Tab` passent d'un élément à l'autre ; `Entrée` ou `Espace` entre dans la modification d'un champ ou d'un choix ; `Échap` en sort en annulant, `Entrée` en sort en validant. Hors modification, un champ ne capte ni les lettres ni les flèches.
 
 - **Lobby** : section « Mes parties » (badge « À toi »), liste des parties publiques, saisie d'un code, bouton « Créer ».
 - **Création** : formulaire (visibilité, joueurs souhaités, échéance, thème, amorce, limites de mots).
@@ -167,9 +169,17 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Dépendance ajoutée : `textual` (prévue au §3).
 
 ## 19. Habillage et raccourcis (révision 6)
-- Thème Textual `cadav` et feuille de style commune dans `cadav/client/theme.py` (palette violette, pastilles `chip()`) ; styles propres à chaque écran dans la classe de l'écran (`CSS`, pas `DEFAULT_CSS`, qui serait écrasé par la feuille commune).
+- Thème Textual `cadav` et feuille de style commune dans `cadav/client/theme.py` (palette Solarized dark : fond `#002b36`, surfaces `#073642`, texte `#839496`, bleu, cyan, magenta, vert, jaune et rouge canoniques ; pastilles `chip()`) ; styles propres à chaque écran dans la classe de l'écran (`CSS`, pas `DEFAULT_CSS`, qui serait écrasé par la feuille commune).
 - Barre du haut (`TopBar`) sur chaque écran sauf la connexion ; pied de page Textual sans palette de commandes.
 - Lobby : deux panneaux (« Mes parties » avec pastilles `À TOI`, `ATTENTE`, `EN COURS`, `TERMINÉE` ; « Parties publiques ») et un panneau « Rejoindre avec un code ». Raccourcis : `n` nouvelle partie, `c` saisir un code, `Entrée` ouvrir ou rejoindre la ligne choisie, `Ctrl+Q` quitter. Au retour d'un autre écran, le focus revient sur la liste pour que `n` et `c` fonctionnent.
 - Création : deux panneaux (« Partie », « Écriture »). `Ctrl+S` crée, `Échap` annule.
 - Salle d'attente : code, joueurs (♛ = hôte), réglages, prochaine étape. `l` lance (hôte, 3 joueurs minimum), `x` quitte la partie, `Échap` revient au lobby.
 - Les captures du README se régénèrent avec `scripts/screenshots.py` (serveur jetable + pilote de test Textual + `rsvg-convert`).
+
+## 20. Navigation clavier, installation (révision 8)
+- `cadav/client/widgets.py` : `NavInput` (champ à deux modes), `NavSelect` (choix : seuls `Entrée` et `Espace` l'ouvrent, `↑` `↓` ne l'ouvrent plus) et `NavOptionList` (liste qui passe le focus à l'élément voisin à ses extrémités, `Espace` comme `Entrée`). Les touches de navigation globales (`↑` `←` précédent, `↓` `→` suivant, `Tab`) sont des liaisons de l'application ; un menu ouvert ou un champ en cours de modification les reçoit en premier.
+- Hors modification, `NavInput` ne consomme aucune touche : les raccourcis des écrans (`n`, `c`, `l`, `x`) fonctionnent même quand le focus est sur un champ. En modification, `↑` et `↓` sont sans effet, `←` `→` déplacent le curseur, un clic entre dans le champ, et perdre le focus valide la saisie.
+- `Entrée` dans un champ ne fait que valider le champ (sauf le champ « code » du lobby, qui rejoint la partie). Sur l'écran de connexion, on valide la connexion avec le bouton « Entrer ».
+- Le pied de page affiche les touches du mode courant (`Entrée Modifier`, ou `Entrée Valider` et `Échap Annuler`).
+- Le paquet Python s'appelle `cadav/` (renommé depuis `cadavre/`). La commande est installable globalement : `uv tool install --editable .` (ou `pipx install --editable .`) place `cadav` dans `~/.local/bin`.
+- Données du serveur par défaut : `$XDG_DATA_HOME/cadav` ou `~/.local/share/cadav` (et non plus `./data`), pour que `cadav serve` se comporte de la même façon quel que soit le dossier courant.
