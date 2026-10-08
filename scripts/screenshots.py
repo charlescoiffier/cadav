@@ -80,6 +80,11 @@ async def main() -> None:
             app.screen.query_one("#connect").press()
             await pilot.pause(0.8)
             save(app, "lobby")
+            await pilot.press("f1")
+            await pilot.pause(0.4)
+            save(app, "aide")
+            await pilot.press("escape")
+            await pilot.pause(0.2)
             await pilot.press("ctrl+n")
             await pilot.pause(0.4)
             await pilot.press("down", "down", "down", "enter")  # the theme field, in editing mode

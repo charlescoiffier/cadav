@@ -152,6 +152,8 @@ FooterKey { background: $footer-background; }
 FooterKey .footer-key--key { color: $accent; text-style: bold; }
 FooterKey .footer-key--description { color: $cadav-text; }
 
+ModalScreen { background: black 40%; }
+
 /* panels: thin rounded border in the accent colour, title on the right in the same colour;
    the panel that holds the focus gets a full-strength border and a bold white title */
 .pane {

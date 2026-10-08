@@ -82,7 +82,14 @@ Textual), avec exactement le thème de base de Posting (« galaxy »). Une palet
 |---|---|
 | ![L'écran de partie : amorce, zone de saisie, compteur de mots, échéance](docs/images/partie.png) | ![L'histoire complète, chaque contribution attribuée à son auteur](docs/images/histoire.png) |
 
+| L'aide, ouverte avec F1 |
+|---|
+| ![La fenêtre d'aide : règles, clavier, raccourcis de l'écran](docs/images/aide.png) |
+
 ### Au clavier
+
+`F1` (ou `Ctrl+F`) ouvre à tout moment une fenêtre d'aide : règles du jeu, fonctionnement du clavier et raccourcis de
+l'écran en cours.
 
 Tout se fait sans souris, avec deux modes :
 
@@ -114,7 +121,8 @@ pleine (le violet du thème).
 | | `Ctrl+Y` | Copier l'histoire dans le presse-papiers |
 | Lobby, salle, partie | `Ctrl+T` | Aller à une partie qui attend ton texte |
 | | `Ctrl+G` | Passer à ta partie suivante |
-| Partout | `Ctrl+Q` | Quitter |
+| Partout | `F1` ou `Ctrl+F` | Ouvrir l'aide (règles, clavier, raccourcis de l'écran en cours) ; `Échap` ou `F1` la referme |
+| | `Ctrl+Q` | Quitter |
 
 ---
 

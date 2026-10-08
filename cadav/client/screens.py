@@ -6,7 +6,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Footer, Input, OptionList, Select, Static, TextArea
 from textual.widgets.option_list import Option
 
@@ -22,6 +22,7 @@ from cadav.client.logic import (
 )
 from cadav import __version__
 from cadav.client import export
+from cadav.client.help import render_help
 from cadav.client.widgets import NavInput, NavOptionList, NavScroll, NavSelect
 from cadav.client.theme import chip, colors
 from cadav.protocol import (
@@ -849,3 +850,46 @@ class FinalScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         {"save": self.action_save, "copy": self.action_copy}.get(event.button.id, self._close)()
+
+
+class HelpScreen(ModalScreen):
+    """The help window: the rules, the keyboard model and the shortcuts of the screen underneath."""
+
+    BINDINGS = [
+        Binding("escape,f1,ctrl+f", "close", "Fermer"),
+    ]
+    CSS = """
+    HelpScreen { align: center middle; }
+    #help-box { width: 80%; max-width: 100; height: 85%; }
+    #help-scroll { height: 1fr; }
+    """
+
+    def __init__(self, place: str, shortcuts: list[tuple[str, str]]) -> None:
+        super().__init__()
+        self.place = place
+        self.shortcuts = shortcuts
+
+    def compose(self) -> ComposeResult:
+        app = self.app
+        content = render_help(
+            self.place,
+            self.shortcuts,
+            version=__version__,
+            config_path=str(app.config_path),
+            export_dir=app.config.export_dir,
+            theme=app.theme,
+            muted=colors.muted,
+            accent=colors.accent,
+            secondary=colors.secondary,
+        )
+        with Vertical(id="help-box", classes="pane") as box:
+            box.border_title = "Aide"
+            with NavScroll(id="help-scroll"):
+                yield Static(content, id="help-text")
+        yield Footer(show_command_palette=False)
+
+    def on_mount(self) -> None:
+        self.query_one("#help-scroll").focus()
+
+    def action_close(self) -> None:
+        self.dismiss()

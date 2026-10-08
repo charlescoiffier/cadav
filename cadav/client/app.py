@@ -14,12 +14,15 @@ from textual.widgets._select import SelectOverlay
 from cadav.client.config import Config, default_config_path, new_secret
 from cadav.client.connection import RETRY_DELAYS, Connection
 from cadav.client.theme import APP_CSS, DEFAULT_PALETTE, PALETTES, build_theme, use_palette
+from cadav.client.help import HELP_KEYS, shortcut_rows
 from cadav.client.screens import (
     CreateScreen,
     FinalScreen,
     GameScreen,
+    HelpScreen,
     LobbyScreen,
     LoginScreen,
+    TopBar,
     WaitingScreen,
 )
 from cadav.protocol import (
@@ -61,6 +64,7 @@ class CadavApp(App):
     ENABLE_COMMAND_PALETTE = False
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quitter"),
+        Binding(HELP_KEYS, "help", "Aide"),
         Binding("ctrl+t", "my_turn_game", "À toi"),
         Binding("ctrl+g", "next_game", "Autre partie"),
         # Arrows and Tab move between elements; widgets that need the arrows
@@ -107,10 +111,23 @@ class CadavApp(App):
         # An open menu keeps the left and right arrows.
         if action in ("focus_next", "focus_previous") and isinstance(self.focused, SelectOverlay):
             return False
+        if action == "help":
+            return not isinstance(self.screen, HelpScreen)
         if action in ("my_turn_game", "next_game"):
             browsing = isinstance(self.screen, (LobbyScreen, WaitingScreen, GameScreen, FinalScreen))
             return browsing and bool(self.games)
         return super().check_action(action, parameters)
+
+    def action_help(self) -> None:
+        screen = self.screen
+        bars = list(screen.query(TopBar))
+        place = bars[0].place if bars else "Connexion"
+        rows = shortcut_rows(
+            (active.binding.key, active.binding.description, active.binding.key_display)
+            for active in screen.active_bindings.values()
+            if active.binding.show and active.enabled
+        )
+        self.push_screen(HelpScreen(place, rows))
 
     # --- startup -----------------------------------------------------------
 

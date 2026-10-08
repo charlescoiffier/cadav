@@ -1146,3 +1146,109 @@ async def test_every_field_has_the_same_focus_bar_as_the_menus(backend):
             bars[ident] = (kind, color.hex.lower())
         assert set(bars) == {"theme", "min-words", "max-words"}
         assert set(bars.values()) == {("outer", focus_color)}, bars
+
+
+# --- the help window ------------------------------------------------------------
+
+
+def help_text(app):
+    return str(app.screen.query_one("#help-text", Static).render())
+
+
+async def test_help_opens_with_f1_shows_the_shortcuts_of_the_screen_and_closes_with_escape(backend):
+    from cadav import __version__
+    from cadav.client.screens import HelpScreen
+
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("f1")
+        await until(pilot, lambda: isinstance(app.screen, HelpScreen))
+        text_ = help_text(app)
+        for expected in ("Le jeu", "Au clavier", "Raccourcis de cet écran (Lobby)", "Ctrl+N", "Nouvelle partie",
+                         "Ctrl+K", "F1 ou Ctrl+F", "Aide", __version__, str(backend.config_path)):
+            assert expected in text_, expected
+        assert app.screen.query_one("#help-box").border_title == "Aide"
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        assert focused_id(app) == "my-games"  # the focus is back where it was
+
+
+async def test_help_toggles_and_has_two_shortcuts(backend):
+    from cadav.client.screens import HelpScreen
+
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+f")
+        await until(pilot, lambda: isinstance(app.screen, HelpScreen))
+        await pilot.press("f1")  # the same key closes it
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        await pilot.press("f1")
+        await until(pilot, lambda: isinstance(app.screen, HelpScreen))
+        await pilot.press("f1")
+        await pilot.pause(0.1)
+        assert len([s for s in app.screen_stack if isinstance(s, HelpScreen)]) == 0  # never stacked
+
+
+async def test_help_is_listed_in_the_footer_of_every_screen(backend):
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+
+        def aide():
+            return [a.binding.description for a in app.screen.active_bindings.values() if a.binding.show and a.enabled]
+
+        assert "Aide" in aide()
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        assert "Aide" in aide()
+
+
+async def test_help_works_on_the_login_screen(tmp_path, backend):
+    from cadav.client.screens import HelpScreen
+
+    app = backend.app()  # no stored account: the login screen
+    async with app.run_test(size=SIZE) as pilot:
+        assert isinstance(app.screen, LoginScreen)
+        await pilot.press("f1")
+        await until(pilot, lambda: isinstance(app.screen, HelpScreen))
+        assert "Raccourcis de cet écran (Connexion)" in help_text(app)
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LoginScreen))
+
+
+async def test_help_does_not_disturb_a_field_being_edited(backend):
+    from cadav.client.screens import HelpScreen
+
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("ctrl+n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("down", "down", "down", *"mer")
+        theme = app.screen.query_one("#theme", Input)
+        assert theme.editing and theme.value == "mer"
+        await pilot.press("f1")
+        await until(pilot, lambda: isinstance(app.screen, HelpScreen))
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        assert theme.value == "mer" and app.focused is theme  # nothing was typed or lost
+
+
+async def test_help_keeps_the_draft_of_a_game(backend):
+    from cadav.client.screens import HelpScreen
+
+    app = await ready(backend)
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await start_three(backend, app, pilot, ["ana", "bob", "cleo"])
+        draft = app.screen.query_one("#draft", TextArea)
+        await until(pilot, lambda: app.focused is draft)
+        await pilot.press(*"un début")
+        await pilot.press("f1")
+        await until(pilot, lambda: isinstance(app.screen, HelpScreen))
+        assert "Raccourcis de cet écran (Partie)" in help_text(app) and "Envoyer" in help_text(app)
+        await pilot.press("f1")
+        await until(pilot, lambda: isinstance(app.screen, GameScreen))
+        assert draft.text == "un début" and app.focused is draft
