@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 from pydantic import BaseModel, Field
 
-from cadavre.protocol import (
+from cadav.protocol import (
     DEFAULT_PRIMER_WORDS,
     MAX_CONTRIBUTION_CHARS,
     MIN_PLAYERS,

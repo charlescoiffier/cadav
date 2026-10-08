@@ -9,8 +9,8 @@ import pytest
 import websockets
 from helpers import T0, Client, Clock
 
-from cadavre.server import CLOSE_REPLACED, Limits, Server
-from cadavre.storage import Storage
+from cadav.server import CLOSE_REPLACED, Limits, Server
+from cadav.storage import Storage
 
 SETTINGS = {"desired_players": 3, "turn_seconds": 120}
 

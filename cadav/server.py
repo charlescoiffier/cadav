@@ -18,9 +18,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from cadavre import game as G
-from cadavre.game import Game, GameError
-from cadavre.protocol import (
+from cadav import game as G
+from cadav.game import Game, GameError
+from cadav.protocol import (
     Auth,
     AuthOk,
     CreateGame,
@@ -46,14 +46,19 @@ from cadavre.protocol import (
     dump_message,
     parse_client_message,
 )
-from cadavre.storage import Storage
+from cadav.storage import Storage
 
-log = logging.getLogger("cadavre.server")
+log = logging.getLogger("cadav.server")
 
 PSEUDO_RE = re.compile(r"^[\w-]{2,24}$")
 CLOSE_REPLACED = 4000
 CLOSE_VERSION = 4001
 MAX_MESSAGE_BYTES = 64 * 1024
+
+
+def default_data_dir() -> str:
+    base = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+    return os.path.join(base, "cadav")
 
 
 def utcnow() -> datetime:
@@ -473,7 +478,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="cadav serve", description="cadav : serveur de cadavre exquis")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--data-dir", default="data")
+    parser.add_argument("--data-dir", default=default_data_dir(), help="dossier des données (défaut : %(default)s)")
     parser.add_argument("--cert", help="certificat TLS (obligatoire si le serveur est public)")
     parser.add_argument("--key", help="clé privée TLS")
     args = parser.parse_args(argv)

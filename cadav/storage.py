@@ -17,9 +17,9 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from cadavre.game import Game
+from cadav.game import Game
 
-log = logging.getLogger("cadavre.storage")
+log = logging.getLogger("cadav.storage")
 
 
 def atomic_write_json(path: Path, data: Any) -> None:

@@ -6,7 +6,7 @@ import re
 
 from pydantic import ValidationError
 
-from cadavre.protocol import (
+from cadav.protocol import (
     DEFAULT_PRIMER_WORDS,
     MAX_TURN_SECONDS,
     MIN_TURN_SECONDS,

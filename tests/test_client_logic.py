@@ -1,14 +1,14 @@
 import pytest
 
-from cadavre.client.config import Config, new_secret
-from cadavre.client.logic import (
+from cadav.client.config import Config, new_secret
+from cadav.client.logic import (
     build_settings,
     describe_settings,
     format_duration,
     my_game_label,
     parse_duration,
 )
-from cadavre.protocol import GameSettings, GameStatus, GameView
+from cadav.protocol import GameSettings, GameStatus, GameView
 
 
 @pytest.mark.parametrize(

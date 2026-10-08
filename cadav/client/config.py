@@ -8,7 +8,7 @@ import secrets
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from cadavre.storage import atomic_write_json
+from cadav.storage import atomic_write_json
 
 DEFAULT_URL = "ws://localhost:8765"
 

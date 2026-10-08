@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from cadavre.protocol import PROTOCOL_VERSION
+from cadav.protocol import PROTOCOL_VERSION
 
 T0 = datetime(2026, 1, 1, 12, tzinfo=UTC)
 

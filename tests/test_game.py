@@ -3,8 +3,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from cadavre import game as g
-from cadavre.protocol import GameSettings, GameStatus, PrimerMode, Visibility
+from cadav import game as g
+from cadav.protocol import GameSettings, GameStatus, PrimerMode, Visibility
 
 T0 = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 

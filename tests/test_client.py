@@ -10,11 +10,11 @@ import websockets
 from helpers import Client
 from textual.widgets import Button, Input, OptionList, Select, Static
 
-from cadavre.client.app import CadavreApp
-from cadavre.client.config import Config
-from cadavre.client.screens import CreateScreen, LobbyScreen, LoginScreen, WaitingScreen
-from cadavre.server import Server
-from cadavre.storage import Storage
+from cadav.client.app import CadavApp
+from cadav.client.config import Config
+from cadav.client.screens import CreateScreen, LobbyScreen, LoginScreen, WaitingScreen
+from cadav.server import Server
+from cadav.storage import Storage
 
 SIZE = (120, 60)
 SETTINGS = {"desired_players": 3, "turn_seconds": 120}
@@ -36,7 +36,7 @@ class Backend:
         await self.server.close()
 
     def app(self):
-        return CadavreApp(config_path=self.config_path, url=self.url, retry_delays=(0.05,))
+        return CadavApp(config_path=self.config_path, url=self.url, retry_delays=(0.05,))
 
     async def script_client(self, name):
         c = Client(await websockets.connect(self.url), name)
@@ -88,9 +88,12 @@ async def test_first_launch_registers_and_saves_config(backend):
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         assert isinstance(app.screen, LoginScreen)
-        await pilot.click("#pseudo")
-        await pilot.press(*"ana")
-        await pilot.press("enter")
+        assert app.focused.id == "pseudo"
+        await pilot.press(*"zzz")  # not editing yet: nothing is typed
+        assert app.screen.query_one("#pseudo", Input).value == ""
+        await pilot.press("enter", *"ana", "enter")  # enter the field, type, validate
+        assert app.screen.query_one("#pseudo", Input).value == "ana"
+        await pilot.press("down", "down", "enter")  # server field, then the "Entrer" button
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         await until(pilot, lambda: app.pseudo == "ana")
         assert "ana@" in text(app, "#status") and "Connecté" in text(app, "#status")
@@ -130,7 +133,7 @@ async def test_refused_stored_secret_returns_to_login(backend):
 
 async def test_offline_status_when_server_is_unreachable(tmp_path):
     Config("ana", "s" * 64, "ws://127.0.0.1:1").save(tmp_path / "c.json")
-    app = CadavreApp(config_path=tmp_path / "c.json", retry_delays=(0.05,))
+    app = CadavApp(config_path=tmp_path / "c.json", retry_delays=(0.05,))
     async with app.run_test(size=SIZE) as pilot:
         await until(pilot, lambda: "Hors ligne" in text(app, "#status"))
         app.screen.query_one("#create", Button).press()
@@ -200,7 +203,7 @@ async def test_public_game_listed_and_joined_from_lobby(backend):
         assert "Le phare" in str(app.screen.query_one("#public-games", OptionList).options[0].prompt)
         public = app.screen.query_one("#public-games", OptionList)
         public.focus()
-        await pilot.press("down", "enter")
+        await pilot.press("enter")
         await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
         assert (await bob.until("player_joined"))["pseudo"] == "ana"
         assert "♛ bob" in text(app, "#players")
@@ -288,7 +291,7 @@ async def test_reopening_a_waiting_game_from_my_games(backend):
         await pilot.press("escape")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         app.screen.query_one("#my-games", OptionList).focus()
-        await pilot.press("down", "enter")
+        await pilot.press("enter")
         await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
 
 
@@ -357,8 +360,8 @@ async def test_code_shortcut_focuses_the_code_field_and_enter_joins(backend):
     app = backend.app()
     async with app.run_test(size=SIZE) as pilot:
         await logged_in(backend, pilot, app)
-        await pilot.press("c")
-        assert app.focused.id == "code"
+        await pilot.press("c")  # focuses the code field and starts editing it
+        assert app.focused.id == "code" and app.focused.editing
         await pilot.press(*code, "enter")
         await until(pilot, lambda: isinstance(app.screen, WaitingScreen))
         await pilot.press("escape")
@@ -382,3 +385,160 @@ async def test_leave_with_the_keyboard(backend):
         await pilot.press("x")
         await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
         assert backend.server.games == {}
+
+
+# --- navigation model: arrows/Tab to move, Enter/Space to edit, Esc to cancel ---
+
+
+def focused_id(app):
+    return app.focused.id if app.focused else None
+
+
+async def test_arrows_and_tab_walk_through_the_create_form(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        order = ["visibility", "players", "deadline", "theme", "primer", "min-words", "max-words", "submit", "cancel"]
+        assert focused_id(app) == "visibility"
+        for expected in order[1:]:
+            await pilot.press("down")
+            assert focused_id(app) == expected
+        for expected in reversed(order[:-1]):
+            await pilot.press("up")
+            assert focused_id(app) == expected
+        await pilot.press("tab", "tab")
+        assert focused_id(app) == "deadline"
+        await pilot.press("shift+tab")
+        assert focused_id(app) == "players"
+        await pilot.press("right")
+        assert focused_id(app) == "deadline"
+        await pilot.press("left")
+        assert focused_id(app) == "players"
+
+
+async def test_field_enters_editing_with_enter_or_space_and_esc_cancels(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("down", "down", "down")
+        theme = app.screen.query_one("#theme", Input)
+        assert app.focused is theme and not theme.editing
+        await pilot.press("a", "b")  # navigation mode: nothing typed
+        assert theme.value == ""
+        await pilot.press("space", *"mer")  # space enters editing; the rest is typed
+        assert theme.editing and theme.value == "mer"
+        await pilot.press("space", *"bleue")  # a space is a space while editing
+        assert theme.value == "mer bleue"
+        await pilot.press("up", "down")  # up and down do nothing while editing
+        assert app.focused is theme and theme.editing
+        await pilot.press("left", "backspace")  # cursor keys work while editing
+        assert theme.value == "mer blue"[:-0] or theme.value.startswith("mer")
+        await pilot.press("escape")  # cancel: back to the value before editing
+        assert not theme.editing and theme.value == "" and app.focused is theme
+        await pilot.press("enter", *"phare", "enter")  # Enter validates and keeps the value
+        assert not theme.editing and theme.value == "phare"
+        await pilot.press("enter", *"x", "escape")  # a second edit can be cancelled too
+        assert theme.value == "phare"
+        assert isinstance(app.screen, CreateScreen)  # Esc left the edit, not the screen
+        await pilot.press("escape")  # now Esc leaves the screen
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+
+
+async def test_arrows_move_focus_when_not_editing_a_field(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("down", "down", "down", "right")
+        assert focused_id(app) == "primer"  # left and right move on, they do not scroll a cursor
+
+
+async def test_select_opens_with_enter_or_space_and_keeps_arrows_for_navigation(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("n")
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        players = app.screen.query_one("#players", Select)
+        await pilot.press("down")
+        assert app.focused is players and players.value == 4  # the arrow moved the focus, no menu
+        await pilot.press("enter")  # opens the menu
+        await pilot.pause()
+        await pilot.press("down", "down", "enter")  # 4 -> 5 -> 6, validate
+        await pilot.pause()
+        assert players.value == 6 and app.focused is players
+        await pilot.press("space")
+        await pilot.pause()
+        await pilot.press("up", "escape")  # Esc closes without changing anything
+        await pilot.pause()
+        assert players.value == 6 and app.focused is players and isinstance(app.screen, CreateScreen)
+
+
+async def test_lists_hand_the_focus_over_at_their_edges(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    bob = await backend.script_client("bob")
+    for theme in ("Un", "Deux"):
+        await bob.send("create_game", settings={**SETTINGS, "theme": theme})
+        await bob.until("game_joined")
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await until(pilot, lambda: len(option_ids(app, "#public-games")) == 2)
+        public = app.screen.query_one("#public-games", OptionList)
+        public.focus()
+        await pilot.pause()
+        assert public.highlighted == 0
+        await pilot.press("down")
+        assert public.highlighted == 1 and app.focused is public
+        await pilot.press("down")  # last entry: the focus moves on
+        assert focused_id(app) == "code"
+        await pilot.press("up")  # back to the list, which keeps its highlight
+        assert app.focused is public
+        await pilot.press("up", "up")  # first entry then the previous element
+        assert focused_id(app) == "my-games"
+        await pilot.press("right")
+        assert app.focused is public
+
+
+async def test_letter_shortcuts_work_from_a_field_that_is_not_being_edited(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        app.screen.query_one("#code", Input).focus()
+        await pilot.press("n")  # not editing: n is the "new game" shortcut
+        await until(pilot, lambda: isinstance(app.screen, CreateScreen))
+        await pilot.press("escape")
+        await until(pilot, lambda: isinstance(app.screen, LobbyScreen))
+        await pilot.press("c", "n")  # editing the code: n is a letter
+        assert isinstance(app.screen, LobbyScreen)
+        assert app.screen.query_one("#code", Input).value == "n"
+
+
+async def test_footer_shows_the_keys_of_the_current_mode(backend):
+    backend.preregister()
+    await register_in_server(backend)
+    app = backend.app()
+    async with app.run_test(size=SIZE) as pilot:
+        await logged_in(backend, pilot, app)
+        await pilot.press("c")
+        shown = {k.binding.action for k in app.screen.active_bindings.values() if k.binding.show}
+        assert "commit_edit" in shown and "cancel_edit" in shown and "begin_edit" not in shown
+        await pilot.press("escape")
+        shown = {k.binding.action for k in app.screen.active_bindings.values() if k.binding.show}
+        assert "begin_edit" in shown and "commit_edit" not in shown

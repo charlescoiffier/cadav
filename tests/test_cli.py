@@ -1,6 +1,6 @@
 import pytest
 
-from cadavre import cli
+from cadav import cli
 
 
 def test_no_command_prints_usage_and_succeeds(capsys):

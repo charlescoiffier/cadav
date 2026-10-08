@@ -3,7 +3,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from cadavre.protocol import (
+from cadav.protocol import (
     PROTOCOL_VERSION,
     CreateGame,
     GameSettings,

@@ -6,12 +6,13 @@ from pathlib import Path
 
 from textual.app import App
 from textual.binding import Binding
+from textual.widgets._select import SelectOverlay
 
-from cadavre.client.config import Config, default_config_path, new_secret
-from cadavre.client.connection import RETRY_DELAYS, Connection
-from cadavre.client.theme import APP_CSS, CADAVRE_THEME
-from cadavre.client.screens import CreateScreen, LobbyScreen, LoginScreen, WaitingScreen
-from cadavre.protocol import (
+from cadav.client.config import Config, default_config_path, new_secret
+from cadav.client.connection import RETRY_DELAYS, Connection
+from cadav.client.theme import APP_CSS, CADAV_THEME
+from cadav.client.screens import CreateScreen, LobbyScreen, LoginScreen, WaitingScreen
+from cadav.protocol import (
     Auth,
     AuthOk,
     ErrorMessage,
@@ -44,11 +45,20 @@ LOGIN_ERRORS = {
 _EVENTS_WITH_VIEW = (PlayerJoined, PlayerLeft, GameStarted, TurnStarted, TurnSkipped, GameFinished)
 
 
-class CadavreApp(App):
+class CadavApp(App):
     TITLE = "cadav"
     CSS = APP_CSS
     ENABLE_COMMAND_PALETTE = False
-    BINDINGS = [Binding("ctrl+q", "quit", "Quitter")]
+    BINDINGS = [
+        Binding("ctrl+q", "quit", "Quitter"),
+        # Arrows and Tab move between elements; widgets that need the arrows
+        # (lists, open menus, a field being edited) handle them first.
+        Binding("tab", "focus_next", "Suivant"),
+        Binding("up", "focus_previous", "Naviguer", key_display="↑↓"),
+        Binding("left", "focus_previous", "Précédent", show=False),
+        Binding("down", "focus_next", "Suivant", show=False),
+        Binding("right", "focus_next", "Suivant", show=False),
+    ]
 
     def __init__(
         self,
@@ -57,8 +67,8 @@ class CadavreApp(App):
         retry_delays: tuple[float, ...] = RETRY_DELAYS,
     ) -> None:
         super().__init__()
-        self.register_theme(CADAVRE_THEME)
-        self.theme = CADAVRE_THEME.name
+        self.register_theme(CADAV_THEME)
+        self.theme = CADAV_THEME.name
         self.config_path = config_path or default_config_path()
         self.config = Config.load(self.config_path)
         if url:
@@ -71,6 +81,12 @@ class CadavreApp(App):
         self.conn: Connection | None = None
         self._candidate = self.config
         self._registering = False
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        # An open menu keeps the left and right arrows.
+        if action in ("focus_next", "focus_previous") and isinstance(self.focused, SelectOverlay):
+            return False
+        return super().check_action(action, parameters)
 
     # --- startup -----------------------------------------------------------
 

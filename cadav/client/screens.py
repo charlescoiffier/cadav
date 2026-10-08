@@ -10,15 +10,16 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Input, OptionList, Select, Static
 from textual.widgets.option_list import Option
 
-from cadavre.client.config import DEFAULT_URL
-from cadavre.client.logic import (
+from cadav.client.config import DEFAULT_URL
+from cadav.client.logic import (
     build_settings,
     describe_settings,
     format_duration,
     primer_text,
     words_text,
 )
-from cadavre.client.theme import (
+from cadav.client.widgets import NavInput, NavOptionList, NavSelect
+from cadav.client.theme import (
     ERROR,
     MUTED,
     PRIMARY,
@@ -27,7 +28,7 @@ from cadavre.client.theme import (
     WARNING,
     chip,
 )
-from cadavre.protocol import (
+from cadav.protocol import (
     MIN_PLAYERS,
     CreateGame,
     GameStatus,
@@ -142,8 +143,8 @@ class LoginScreen(Screen):
                 id="tagline",
                 classes="muted",
             )
-            yield _field("Pseudo", Input(value=config.pseudo, placeholder="2 à 24 caractères", id="pseudo", max_length=24))
-            yield _field("Serveur", Input(value=config.url or DEFAULT_URL, id="server"))
+            yield _field("Pseudo", NavInput(value=config.pseudo, placeholder="2 à 24 caractères", id="pseudo", max_length=24))
+            yield _field("Serveur", NavInput(value=config.url or DEFAULT_URL, id="server"))
             yield Static(self._error, id="login-error", classes="error")
             with Horizontal(classes="buttons"):
                 yield Button("Entrer", id="connect", variant="primary")
@@ -167,9 +168,6 @@ class LoginScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self._submit()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        self._submit()
-
 
 class LobbyScreen(Screen):
     ready = False
@@ -191,13 +189,13 @@ class LobbyScreen(Screen):
         with Horizontal(id="lobby-body"):
             with Vertical(id="mine-pane", classes="pane") as mine:
                 mine.border_title = "Mes parties"
-                yield OptionList(id="my-games")
+                yield NavOptionList(id="my-games")
             with Vertical(id="public-pane", classes="pane") as public:
                 public.border_title = "Parties publiques"
-                yield OptionList(id="public-games")
+                yield NavOptionList(id="public-games")
         with Horizontal(id="join-pane", classes="pane") as join:
             join.border_title = "Rejoindre avec un code"
-            yield Input(placeholder="CODE", id="code", max_length=5)
+            yield NavInput(placeholder="CODE", id="code", max_length=5)
             yield Button("Rejoindre", id="join-code")
             with Horizontal(classes="actions"):
                 yield Button("Créer une partie", id="create", variant="primary")
@@ -231,7 +229,9 @@ class LobbyScreen(Screen):
         self.app.push_screen(CreateScreen())
 
     def action_focus_code(self) -> None:
-        self.query_one("#code", Input).focus()
+        code = self.query_one("#code", NavInput)
+        code.focus()
+        code.begin_edit()
 
     async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         game_id = event.option.id
@@ -287,40 +287,40 @@ class CreateScreen(Screen):
                 form.border_title = "Partie"
                 yield _field(
                     "Visibilité",
-                    Select(
+                    NavSelect(
                         [("Publique (dans la liste)", "public"), ("Privée (par code)", "private")],
                         value="public", allow_blank=False, id="visibility",
                     ),
                 )
                 yield _field(
                     "Joueurs",
-                    Select([(str(n), n) for n in range(3, 9)], value=4, allow_blank=False, id="players"),
+                    NavSelect([(str(n), n) for n in range(3, 9)], value=4, allow_blank=False, id="players"),
                 )
                 yield _field(
                     "Durée d'un tour",
-                    Select(
+                    NavSelect(
                         [("Rapide (2 min)", "quick"), ("Tranquille (24 h)", "relaxed"), ("Personnalisée…", "custom")],
                         value="relaxed", allow_blank=False, id="deadline",
                     ),
                 )
                 yield _field(
                     "",
-                    Input(placeholder="90s, 10min, 36h, 2j (30 s à 72 h)", id="custom-deadline"),
+                    NavInput(placeholder="90s, 10min, 36h, 2j (30 s à 72 h)", id="custom-deadline"),
                     row_id="custom-row",
                 )
-                yield _field("Thème", Input(placeholder="facultatif", id="theme", max_length=200))
+                yield _field("Thème", NavInput(placeholder="facultatif", id="theme", max_length=200))
             with Vertical(id="rules-pane", classes="pane") as rules:
                 rules.border_title = "Écriture"
                 yield _field(
                     "Amorce",
-                    Select(
+                    NavSelect(
                         [("Dernière phrase", "last_sentence"), ("N derniers mots", "last_words"), ("Aucune", "none")],
                         value="last_sentence", allow_blank=False, id="primer",
                     ),
                 )
-                yield _field("", Input(placeholder="N (défaut 12)", id="primer-words", type="integer"), row_id="primer-row")
-                yield _field("Mots minimum", Input(placeholder="facultatif", id="min-words", type="integer"))
-                yield _field("Mots maximum", Input(placeholder="facultatif", id="max-words", type="integer"))
+                yield _field("", NavInput(placeholder="N (défaut 12)", id="primer-words", type="integer"), row_id="primer-row")
+                yield _field("Mots minimum", NavInput(placeholder="facultatif", id="min-words", type="integer"))
+                yield _field("Mots maximum", NavInput(placeholder="facultatif", id="max-words", type="integer"))
                 yield Static("", id="form-error", classes="error")
                 with Horizontal(classes="buttons"):
                     yield Button("Créer", id="submit", variant="primary")
@@ -430,8 +430,7 @@ class WaitingScreen(Screen):
         is_host = view.host == self.app.pseudo
         enough = len(view.players) >= MIN_PLAYERS
         self.query_one("#code-line", Static).update(
-            Text.assemble((f"  {view.code}  ", f"bold {PRIMARY} on #140a22 reverse"), "\n",
-                          ("à partager pour inviter", MUTED))
+            Text.assemble(chip(f"  {view.code}  ", PRIMARY), "\n", ("à partager pour inviter", MUTED))
             if view.code
             else Text("")
         )

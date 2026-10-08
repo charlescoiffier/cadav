@@ -9,9 +9,9 @@ from collections.abc import Awaitable, Callable
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from cadavre.protocol import ProtocolError, dump_message, parse_server_message
+from cadav.protocol import ProtocolError, dump_message, parse_server_message
 
-log = logging.getLogger("cadavre.client")
+log = logging.getLogger("cadav.client")
 
 CLOSE_REPLACED = 4000
 CLOSE_VERSION = 4001

@@ -14,11 +14,11 @@ from pathlib import Path
 
 import websockets
 
-from cadavre.client.app import CadavreApp
-from cadavre.client.config import Config
-from cadavre.protocol import PROTOCOL_VERSION
-from cadavre.server import Server
-from cadavre.storage import Storage
+from cadav.client.app import CadavApp
+from cadav.client.config import Config
+from cadav.protocol import PROTOCOL_VERSION
+from cadav.server import Server
+from cadav.storage import Storage
 
 OUT = Path(__file__).resolve().parent.parent / "docs" / "images"
 SIZE = (110, 30)
@@ -61,17 +61,18 @@ async def main() -> None:
 
         config = tmp / "client.json"
         Config("", "", url).save(config)
-        app = CadavreApp(config_path=config, url=url, retry_delays=(0.05,))
+        app = CadavApp(config_path=config, url=url, retry_delays=(0.05,))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause(0.3)
             save(app, "connexion")
             app.screen.query_one("#pseudo").value = "ana"
-            await pilot.press("enter")
+            app.screen.query_one("#connect").press()
             await pilot.pause(0.8)
             save(app, "lobby")
             await pilot.press("n")
             await pilot.pause(0.4)
-            app.screen.query_one("#theme").value = "Un naufrage à la Belle Époque"
+            await pilot.press("down", "down", "down", "enter")  # the theme field, in editing mode
+            await pilot.press(*"Un naufrage")
             app.screen.query_one("#min-words").value = "10"
             app.screen.query_one("#max-words").value = "60"
             await pilot.pause(0.2)

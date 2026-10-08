@@ -4,9 +4,9 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from cadavre import game as G
-from cadavre.protocol import GameSettings
-from cadavre.storage import Storage, atomic_write_json
+from cadav import game as G
+from cadav.protocol import GameSettings
+from cadav.storage import Storage, atomic_write_json
 
 T0 = datetime(2026, 1, 1, 12, tzinfo=UTC)
 

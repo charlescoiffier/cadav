@@ -54,7 +54,8 @@ Le détail des règles et des décisions est dans le [cahier des charges](cahier
 
 ## Aperçu
 
-Une interface de terminal pensée pour le clavier, dans l'esprit de [Posting](https://posting.sh/) (bâtie comme lui avec Textual).
+Une interface de terminal pensée pour le clavier, dans l'esprit de [Posting](https://posting.sh/) (bâtie comme lui avec
+Textual), aux couleurs de [Solarized](https://ethanschoonover.com/solarized/) dark.
 
 | Connexion | Le lobby |
 |---|---|
@@ -64,18 +65,28 @@ Une interface de terminal pensée pour le clavier, dans l'esprit de [Posting](ht
 |---|---|
 | ![Le formulaire de création d'une partie](docs/images/creation.png) | ![La salle d'attente avec le code, les réglages et les joueurs](docs/images/salle-attente.png) |
 
-### Raccourcis clavier
+### Au clavier
+
+Tout se fait sans souris, avec deux modes :
+
+- **Navigation** : `↑` `↓` `←` `→` et `Tab` / `Maj+Tab` passent d'un élément au suivant ou au précédent. Dans une liste, les
+  flèches parcourent les lignes, puis passent à l'élément voisin aux extrémités.
+- **Modification** : `Entrée` ou `Espace` entre dans un champ de saisie ou ouvre un choix. Dans un champ, `Entrée` valide
+  et `Échap` annule (la valeur d'avant revient). Dans un choix ouvert, `↑` `↓` parcourent les options, `Entrée` valide et
+  `Échap` referme sans rien changer.
+
+Tant qu'on ne modifie pas un champ, les lettres ne sont pas saisies : les raccourcis ci-dessous restent utilisables.
+Le pied de page rappelle les touches du moment.
 
 | Écran | Touches | Effet |
 |---|---|---|
 | Lobby | `n` | Créer une partie |
 | | `c` | Saisir un code de partie privée (`Entrée` pour rejoindre) |
-| | `↑` `↓` `Entrée` | Choisir et ouvrir une partie, ou rejoindre une partie publique |
+| | `Entrée` / `Espace` | Ouvrir une de mes parties, ou rejoindre une partie publique |
 | Création | `Ctrl+S` / `Échap` | Créer la partie / annuler |
 | Salle d'attente | `l` | Lancer la partie (hôte, au moins 3 joueurs) |
 | | `x` / `Échap` | Quitter la partie / revenir au lobby |
-| Partout | `Tab` | Champ suivant |
-| | `Ctrl+Q` | Quitter |
+| Partout | `Ctrl+Q` | Quitter |
 
 ---
 
@@ -93,6 +104,17 @@ uv pip install -e '.[dev]'
 
 Sans uv : `python -m venv .venv && .venv/bin/pip install -e '.[dev]'`.
 
+### Installer la commande `cadav`
+
+Pour lancer `cadav` depuis n'importe quel dossier, sans `.venv/bin/` (le dossier `~/.local/bin` doit être dans le `PATH`) :
+
+```bash
+uv tool install --editable .      # ou : pipx install --editable .
+```
+
+L'installation est « éditable » : les modifications du code sont prises en compte sans réinstaller. Pour la retirer :
+`uv tool uninstall cadav`.
+
 ## Technologies
 
 - Python 3.11+
@@ -105,14 +127,15 @@ Sans uv : `python -m venv .venv && .venv/bin/pip install -e '.[dev]'`.
 ## Organisation du code
 
 ```
-cadavre/
+cadav/
   protocol.py      # messages Pydantic partagés, numéro de version
   game.py          # logique pure : ordre, tours, amorce, échéances, view_for
   storage.py       # JSON atomique : comptes, parties en cours, archives
   server.py        # WebSocket : comptes, lobby, parties, échéances
   cli.py           # cadav serve | cadav play
   client/
-    theme.py       # thème violet, feuille de style commune, pastilles
+    theme.py       # palette Solarized dark, thème Textual, feuille de style, pastilles
+    widgets.py     # champs, choix et listes pilotés au clavier (mode navigation / édition)
     app.py         # application Textual : connexion, état, navigation
     screens.py     # connexion, lobby, création, salle d'attente (et leurs raccourcis)
     connection.py  # WebSocket client avec reconnexion
@@ -135,20 +158,21 @@ scripts/
 
 ## Essayer le jeu en local
 
-Depuis le dossier du projet (sur macOS la commande `python` n'existe pas : on passe par `.venv/bin/…`, ou on active
-l'environnement avec `source .venv/bin/activate`). Dans un premier terminal, le serveur :
+Une fois la commande installée (voir plus haut), dans un premier terminal, le serveur :
 
 ```bash
-.venv/bin/cadav serve --port 8765 --data-dir data
+cadav serve
 ```
 
-Dans un ou plusieurs autres, un client (`--config` permet de simuler plusieurs joueurs sur la même machine) :
+Il garde ses données dans `~/.local/share/cadav` (`--data-dir` pour changer, `--port` pour le port, 8765 par défaut).
+Dans un ou plusieurs autres terminaux, un client (`--config` permet de simuler plusieurs joueurs sur la même machine) :
 
 ```bash
-.venv/bin/cadav play --url ws://localhost:8765 --config /tmp/joueur1.json
+cadav play --config /tmp/joueur1.json
 ```
 
-Sans `--config`, le pseudo et le secret sont gardés dans `~/.config/cadav/config.json` (droits `0600`).
+Sans `--config`, le pseudo et le secret sont gardés dans `~/.config/cadav/config.json` (droits `0600`). Sans installation,
+remplacez `cadav` par `.venv/bin/cadav` (sur macOS la commande `python` n'existe pas).
 
 ## Principes
 

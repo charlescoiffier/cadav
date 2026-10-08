@@ -6,46 +6,96 @@ one line high, and key hints live in the footer: everything is keyboard-first.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from rich.text import Text
 from textual.theme import Theme
 
-BACKGROUND = "#140a22"
-SURFACE = "#1f1233"
-PANEL = "#2a1a45"
-PRIMARY = "#9b5de5"
-SECONDARY = "#cf9bff"
-ACCENT = "#f15bb5"
-SUCCESS = "#3ddc97"
-WARNING = "#ffb454"
-ERROR = "#ff5c7a"
-FOREGROUND = "#e9e1f5"
-MUTED = "#8f7fb0"
+@dataclass(frozen=True)
+class Palette:
+    """Every colour of the interface. A light variant only needs another instance."""
 
-CADAVRE_THEME = Theme(
+    name: str
+    dark: bool
+    background: str
+    surface: str  # highlights, fields
+    panel: str
+    border_dim: str
+    foreground: str  # body text
+    strong: str  # emphasised text
+    muted: str  # hints, secondary text
+    primary: str
+    secondary: str
+    accent: str
+    success: str
+    warning: str
+    error: str
+
+
+# Solarized (Ethan Schoonover), dark variant, with the canonical hex values.
+SOLARIZED_DARK = Palette(
     name="cadav",
-    primary=PRIMARY,
-    secondary=SECONDARY,
-    accent=ACCENT,
-    foreground=FOREGROUND,
-    background=BACKGROUND,
-    surface=SURFACE,
-    panel=PANEL,
-    success=SUCCESS,
-    warning=WARNING,
-    error=ERROR,
     dark=True,
-    variables={
-        "border": PRIMARY,
-        "border-blurred": "#4b2f78",
-        "footer-key-foreground": BACKGROUND,
-        "footer-key-background": PRIMARY,
-        "footer-description-foreground": MUTED,
-        "footer-background": SURFACE,
-        "input-selection-background": "#9b5de5 50%",
-        "block-cursor-background": PRIMARY,
-        "block-cursor-foreground": BACKGROUND,
-    },
+    background="#002b36",  # base03
+    surface="#073642",  # base02
+    panel="#0b3f4d",
+    border_dim="#1c5666",
+    foreground="#839496",  # base0
+    strong="#93a1a1",  # base1
+    muted="#657b83",  # base00
+    primary="#268bd2",  # blue
+    secondary="#2aa198",  # cyan
+    accent="#d33682",  # magenta
+    success="#859900",  # green
+    warning="#b58900",  # yellow
+    error="#dc322f",  # red
 )
+
+PALETTE = SOLARIZED_DARK
+
+BACKGROUND = PALETTE.background
+SURFACE = PALETTE.surface
+PANEL = PALETTE.panel
+PRIMARY = PALETTE.primary
+SECONDARY = PALETTE.secondary
+ACCENT = PALETTE.accent
+SUCCESS = PALETTE.success
+WARNING = PALETTE.warning
+ERROR = PALETTE.error
+FOREGROUND = PALETTE.foreground
+STRONG = PALETTE.strong
+MUTED = PALETTE.muted
+
+
+def build_theme(p: Palette) -> Theme:
+    return Theme(
+        name=p.name,
+        primary=p.primary,
+        secondary=p.secondary,
+        accent=p.accent,
+        foreground=p.foreground,
+        background=p.background,
+        surface=p.surface,
+        panel=p.panel,
+        success=p.success,
+        warning=p.warning,
+        error=p.error,
+        dark=p.dark,
+        variables={
+            "border": p.primary,
+            "border-blurred": p.border_dim,
+            "footer-key-foreground": p.background,
+            "footer-key-background": p.primary,
+            "footer-description-foreground": p.muted,
+            "footer-background": p.surface,
+            "input-selection-background": f"{p.primary} 50%",
+            "block-cursor-background": p.primary,
+            "block-cursor-foreground": p.background,
+        },
+    )
+
+
+CADAV_THEME = build_theme(PALETTE)
 
 
 def chip(label: str, bg: str, fg: str = BACKGROUND) -> Text:
@@ -69,7 +119,7 @@ FooterKey .footer-key--description {{ color: {MUTED}; background: $surface; }}
 
 /* panels: rounded border, title in the border */
 .pane {{
-    border: round $primary 70%;
+    border: round $primary 60%;
     border-title-color: $secondary;
     border-title-style: bold;
     border-subtitle-color: {MUTED};
@@ -93,13 +143,17 @@ OptionList > .option-list--option-disabled {{ color: {MUTED}; }}
 .frow {{ height: 1; margin-bottom: 1; }}
 .flabel {{ width: 18; color: {MUTED}; }}
 Input {{
-    border: none; height: 1; padding: 0 1; background: $surface; width: 1fr;
+    border: none; height: 1; padding: 0 1; background: $surface; width: 1fr; color: {STRONG};
 }}
 Input:focus {{ border: none; background: $primary 40%; }}
+/* navigation mode: no cursor; editing mode: accent background and visible cursor */
+NavInput > .input--cursor {{ background: transparent; color: {STRONG}; text-style: none; }}
+NavInput.-editing > .input--cursor {{ background: $accent; color: $background; text-style: bold; }}
+NavInput.-editing, NavInput.-editing:focus {{ background: $accent 35%; }}
 Input.-invalid {{ border: none; }}
-Input > .input--placeholder {{ color: #6d5c8f; }}
+Input > .input--placeholder {{ color: {MUTED}; }}
 Select {{ height: 1; width: 1fr; }}
-Select > SelectCurrent {{ border: none; height: 1; padding: 0 1; background: $surface; }}
+Select > SelectCurrent {{ border: none; height: 1; padding: 0 1; background: $surface; color: {STRONG}; }}
 Select:focus > SelectCurrent {{ border: none; background: $primary 40%; }}
 SelectOverlay {{ border: round $primary; background: $surface; }}
 

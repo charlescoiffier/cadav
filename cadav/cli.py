@@ -15,11 +15,11 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     command, rest = (args[0], args[1:]) if args else ("", [])
     if command == "serve":
-        from cadavre.server import main as serve
+        from cadav.server import main as serve
 
         serve(rest)
     elif command == "play":
-        from cadavre.client.__main__ import main as play
+        from cadav.client.__main__ import main as play
 
         play(rest)
     else:
