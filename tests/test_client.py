@@ -1138,10 +1138,8 @@ async def test_every_field_has_the_same_focus_bar_as_the_menus(backend):
         await pilot.press("down", "down", "down")
         assert not app.screen.query_one("#min-words", Input).has_class("-invalid")  # empty numbers are valid
         bars = {}
-        for ident in ("theme", "min-words", "max-words", "primer-words"):
+        for ident in ("theme", "min-words", "max-words"):  # (the N field sits in a row that is hidden)
             field = app.screen.query_one(f"#{ident}", Input)
-            if not field.display:
-                continue
             field.focus()
             await pilot.pause()
             kind, color = field.styles.border_left
