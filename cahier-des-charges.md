@@ -151,11 +151,11 @@ Notifications push (ntfy.sh ou webhook), i18n. Idées plus lointaines : mode gui
 - Chaque changement est écrit sur disque avant d'être oublié ; une erreur d'écriture est journalisée sans faire tomber la partie. Un fichier de partie illisible est ignoré au démarrage.
 - Les parties terminées passent de `data/games/` à `data/archive/` ; une salle vidée ou expirée est supprimée.
 - Un `leave_game` ou `submit_text` d'un non-membre renvoie `not_in_game`, sans révéler si la partie existe.
-- Lancement du serveur pour essai : `.venv/bin/python -m cadavre.server --port 8765 --data-dir data` (options `--cert` et `--key` pour TLS). La commande `cadavre serve` arrive avec `cli.py` (jalon 5).
+- Lancement du serveur : `cadavre serve --port 8765 --data-dir data` (options `--cert` et `--key` pour TLS), équivalent à `python -m cadavre.server`.
 - Dépendance ajoutée : `websockets` (prévue au §3).
 
 ## 18. Décisions d'implémentation (jalon 3)
-- Le client est un paquet `cadavre/client/` : `logic.py` (analyse du formulaire et textes, sans Textual ni réseau, testé seul), `config.py`, `connection.py` (WebSocket), `screens.py` et `app.py`. Lancement provisoire : `.venv/bin/python -m cadavre.client [--url ws://…] [--config fichier]` ; la commande `cadavre play` arrive avec `cli.py` (jalon 5).
+- Le client est un paquet `cadavre/client/` : `logic.py` (analyse du formulaire et textes, sans Textual ni réseau, testé seul), `config.py`, `connection.py` (WebSocket), `screens.py` et `app.py`. Lancement : `cadavre play [--url ws://…] [--config fichier]`, équivalent à `python -m cadavre.client`.
 - Configuration locale : `~/.config/cadavre/config.json` (ou `$XDG_CONFIG_HOME`, ou `$CADAVRE_CONFIG`), contenant `pseudo`, `secret` (64 caractères hexadécimaux) et `url` ; écrite de façon atomique avec les droits `0600`. URL par défaut : `ws://localhost:8765`.
 - Premier lancement : écran de connexion (pseudo + serveur) ; le secret est généré à ce moment et n'est enregistré qu'une fois l'inscription acceptée. Un secret refusé par le serveur ramène à l'écran de connexion ; saisir le même pseudo réutilise le secret stocké, un autre pseudo crée un nouveau compte.
 - Reconnexion automatique (1, 2, 4 puis 8 s) avec ré-authentification ; pas de reconnexion si la connexion a été remplacée par un autre terminal (code 4000) ou si le client est trop ancien (code 4001).

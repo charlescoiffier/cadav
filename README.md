@@ -110,6 +110,7 @@ cadavre/
   game.py          # logique pure : ordre, tours, amorce, échéances, view_for
   storage.py       # JSON atomique : comptes, parties en cours, archives
   server.py        # WebSocket : comptes, lobby, parties, échéances
+  cli.py           # cadavre serve | cadavre play
   client/
     theme.py       # thème violet, feuille de style commune, pastilles
     app.py         # application Textual : connexion, état, navigation
@@ -124,25 +125,27 @@ tests/
   test_server.py   # vrai serveur WebSocket et clients scriptés
   test_client.py   # l'application Textual pilotée contre un vrai serveur
   test_client_logic.py
+  test_cli.py
 cahier-des-charges.md
 scripts/
   screenshots.py   # régénère les captures du README
 ```
 
-À venir : l'écran de partie et l'écran final, puis `cli.py` (`cadavre play` et `cadavre serve`).
+À venir : l'écran de partie et l'écran final.
 
 ## Essayer le jeu en local
 
-Dans un premier terminal, le serveur :
+Depuis le dossier du projet (sur macOS la commande `python` n'existe pas : on passe par `.venv/bin/…`, ou on active
+l'environnement avec `source .venv/bin/activate`). Dans un premier terminal, le serveur :
 
 ```bash
-.venv/bin/python -m cadavre.server --port 8765 --data-dir data
+.venv/bin/cadavre serve --port 8765 --data-dir data
 ```
 
 Dans un ou plusieurs autres, un client (`--config` permet de simuler plusieurs joueurs sur la même machine) :
 
 ```bash
-.venv/bin/python -m cadavre.client --url ws://localhost:8765 --config /tmp/joueur1.json
+.venv/bin/cadavre play --url ws://localhost:8765 --config /tmp/joueur1.json
 ```
 
 Sans `--config`, le pseudo et le secret sont gardés dans `~/.config/cadavre/config.json` (droits `0600`).

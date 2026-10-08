@@ -470,7 +470,7 @@ def main(argv: list[str] | None = None) -> None:
     import ssl as ssl_lib
     from pathlib import Path
 
-    parser = argparse.ArgumentParser(description="Serveur de cadavre exquis")
+    parser = argparse.ArgumentParser(prog="cadavre serve", description="Serveur de cadavre exquis")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--data-dir", default="data")

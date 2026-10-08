@@ -4,11 +4,11 @@ from pathlib import Path
 from cadavre.client.app import CadavreApp
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Cadavre exquis en terminal")
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="cadavre play", description="Cadavre exquis en terminal")
     parser.add_argument("--url", help="adresse du serveur, ex. ws://localhost:8765")
     parser.add_argument("--config", type=Path, help="fichier de configuration locale")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     CadavreApp(config_path=args.config, url=args.url).run()
 
 
