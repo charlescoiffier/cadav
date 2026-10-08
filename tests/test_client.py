@@ -61,6 +61,7 @@ async def until(pilot, cond, timeout=3.0):
     while time.monotonic() < end:
         await pilot.pause(0.03)
         if cond():
+            await pilot.pause()  # let the widgets of a freshly shown screen finish mounting
             return
     raise AssertionError("condition not reached in time")
 
