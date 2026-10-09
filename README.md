@@ -73,15 +73,12 @@ Textual), avec exactement le thème de base de Posting (« galaxy »). Une palet
 | Connexion | Le lobby |
 |---|---|
 | ![L'écran de connexion](docs/images/connexion.png) | ![Le lobby : mes parties, parties publiques, saisie d'un code](docs/images/lobby.png) |
-
 | La création d'une partie | La salle d'attente |
 |---|---|
 | ![Le formulaire de création d'une partie](docs/images/creation.png) | ![La salle d'attente avec le code, les réglages et les joueurs](docs/images/salle-attente.png) |
-
 | À toi d'écrire : l'amorce, ton texte et son compteur |
 |---|
 | ![L'écran de partie : amorce, zone de saisie, compteur de mots, échéance](docs/images/partie.png) |
-
 | L'écran final : l'histoire à copier ou à exporter | L'aide, ouverte avec F1 |
 |---|---|
 | ![L'histoire complète, chaque contribution attribuée à son auteur](docs/images/histoire.png) | ![La fenêtre d'aide : règles, clavier, raccourcis de l'écran](docs/images/aide.png) |
