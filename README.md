@@ -1,3 +1,6 @@
+> [!WARNING]
+> Ce projet a été vibecodé avec l’aide de l’intelligence artificielle.
+
 # cadav
 
 [![CI](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml/badge.svg)](https://github.com/charlescoiffier/cadav/actions/workflows/ci.yml)
