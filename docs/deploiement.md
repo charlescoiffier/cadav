@@ -41,6 +41,13 @@ docker compose -f deploy/docker-compose.yml up -d --build
 
 Les comptes et les parties sont dans le volume `cadav-data`. Mise à jour : `git pull` puis la même commande `up -d --build`.
 
+### Le serveur public de ce projet
+
+`cadav.charlescoiffier.fr` tourne sur un VPS derrière Traefik (qui joue le rôle de Caddy ci-dessus : TLS Let's Encrypt, WebSocket
+transmis, adresse du joueur dans `X-Forwarded-For`, donc `--trust-proxy`). Son compose est `deploy/vps/docker-compose.yml`, avec le même
+`deploy/Dockerfile` ; chaque push sur `main` reconstruit l'image et redéploie (`.github/workflows/vps-deploy.yml`). Les données sont dans
+le volume Docker `cadav-data`.
+
 ### Avec systemd
 
 ```bash
