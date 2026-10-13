@@ -1,0 +1,33 @@
+# Modèle de déploiement pour cadav.charlescoiffier.fr (généré par scripts/new-site.sh)
+# Copié automatiquement sur le VPS dans ~/srv/cadav/ à chaque déploiement.
+# Variables d'environnement de l'appli : fichier ~/srv/cadav/.env sur le VPS (optionnel, jamais commité).
+services:
+  app:
+    image: ghcr.io/charlescoiffier/cadav:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    # Comptes, parties et archives : le volume survit aux mises à jour (sauvegarde = copie du dossier de données)
+    volumes:
+      - cadav-data:/data
+    networks: [web]
+    # Garde-fous : une appli qui s'emballe ne doit pas faire tomber les autres sites (VPS : 1 cœur, 3,8 Go)
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 200
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.routers.cadav.rule=Host(`cadav.charlescoiffier.fr`)
+      - traefik.http.routers.cadav.tls.certresolver=le
+      - traefik.http.services.cadav.loadbalancer.server.port=8765
+
+volumes:
+  cadav-data:
+
+networks:
+  web:
+    external: true
