@@ -10,9 +10,10 @@
 **cadav** est un jeu de cadavre exquis textuel et multijoueur, à jouer dans le terminal. Un serveur central gère le lobby et toutes
 les parties ; chaque joueur écrit à son tour un morceau d'histoire sans voir ce qu'ont écrit les autres.
 
-> **État du projet : en construction.** Le jeu est jouable de bout en bout, de la connexion à l'export de l'histoire (jalons 1 à 5). Le déploiement sur un serveur public est préparé
-> (jalon 6, [guide](docs/deploiement.md)) mais pas encore fait : faute d'hébergement, on joue pour l'instant sur sa machine, sur
-> un réseau de confiance ou via un réseau privé virtuel.
+> **État du projet : en construction.** Le jeu est jouable de bout en bout, de la connexion à l'export de l'histoire (jalons 1 à 5).
+> Un **serveur public est en ligne** sur `cadav.charlescoiffier.fr` (jalon 6, [guide](docs/deploiement.md)) : pour y jouer,
+> `cadav play --url wss://cadav.charlescoiffier.fr`. Les essais en conditions réelles (liste de contrôle du guide) restent à faire :
+> attendez-vous à des aspérités, et à ce que les parties puissent être réinitialisées.
 
 ---
 
@@ -35,7 +36,8 @@ Il faut Python 3.11 ou plus récent. Avec [pipx](https://pipx.pypa.io/) (ou `uv 
 pipx install git+https://github.com/charlescoiffier/cadav
 ```
 
-Puis, pour jouer sur un serveur existant : `cadav play --url wss://adresse-du-serveur`. Pour héberger soi-même : `cadav serve`
+Puis, pour jouer sur le serveur public : `cadav play --url wss://cadav.charlescoiffier.fr` (ou, pour un autre serveur,
+`cadav play --url wss://adresse-du-serveur`). Pour héberger soi-même : `cadav serve`
 (voir [le guide d'hébergement](docs/deploiement.md)).
 `cadav --version` affiche la version installée ; `pipx upgrade cadav` met à jour.
 
@@ -63,7 +65,7 @@ Puis, pour jouer sur un serveur existant : `cadav play --url wss://adresse-du-se
 | 3 | Client : lobby, création, salle d'attente | Fait |
 | 4 | Écran de partie et reprise à la connexion | Fait |
 | 5 | Écran final, export (`.txt`, `.md`, presse-papiers), installation avec `pipx` | Fait |
-| 6 | Déploiement sur un serveur (WSS) et essais en conditions réelles | Préparé (voir [le guide](docs/deploiement.md)) ; en attente d'un hébergement |
+| 6 | Déploiement sur un serveur (WSS) et essais en conditions réelles | Serveur déployé (`cadav.charlescoiffier.fr`, voir [le guide](docs/deploiement.md)) ; essais en conditions réelles à faire |
 
 Le détail des règles et des décisions est dans le [cahier des charges](cahier-des-charges.md), qui fait référence.
 
